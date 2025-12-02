@@ -1,20 +1,14 @@
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  // Enkel hälsokoll
-  return NextResponse.json({ ok: true });
+  const hasKey = !!process.env.OPENAI_API_KEY;
+
+  return NextResponse.json({
+    ok: true,
+    hasKey,
+  });
 }
 
-export async function POST(req: Request) {
-  try {
-    const { imageUrl } = await req.json();
-
-    if (!imageUrl) {
-      return NextResponse.json(
-        { error: "imageUrl saknas" },
-        { status: 400 }
-      );
-    }
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -108,6 +102,7 @@ export async function POST(req: Request) {
     );
   }
 }
+
 
 
 
