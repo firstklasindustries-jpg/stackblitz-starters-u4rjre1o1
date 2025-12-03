@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Anropa OpenAI Vision
+    // 🔹 Anropa OpenAI Responses API UTAN response_format
     const openaiRes = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -42,8 +42,10 @@ export async function POST(req: Request) {
                 type: "input_text",
                 text:
                   "Du är expert på entreprenadmaskiner. " +
-                  "Analysera bilden (maskin/typskylt). Försök läsa av modellbeteckning och serienummer. " +
-                  "Svara ENDAST som JSON med fälten 'model' och 'serial'. " +
+                  "Du får en bild på en maskin eller typskylt. " +
+                  "Din uppgift är att försöka läsa av modellbeteckning och serienummer. " +
+                  "Svara ENDAST med ett JSON-objekt på formen: " +
+                  `{"model": "...", "serial": "..."}. ` +
                   "Om du är osäker, lämna tom sträng för det du inte ser tydligt.",
               },
               {
@@ -53,21 +55,8 @@ export async function POST(req: Request) {
             ],
           },
         ],
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "MachineInfo",
-            schema: {
-              type: "object",
-              properties: {
-                model: { type: "string" },
-                serial: { type: "string" },
-              },
-              required: ["model", "serial"],
-              additionalProperties: false,
-            },
-          },
-        },
+        // Vi litar på prompten istället för response_format här
+        max_output_tokens: 256,
       }),
     });
 
@@ -82,43 +71,54 @@ export async function POST(req: Request) {
 
     const data = await openaiRes.json();
 
-    // Försök plocka ut JSON från svaret
-    let raw: any =
+    // 🔹 Plocka ut text-svaret ur Responses API-strukturen
+    let text = "";
+
+    if (
       data &&
       data.output &&
+      Array.isArray(data.output) &&
       data.output[0] &&
       data.output[0].content &&
+      Array.isArray(data.output[0].content) &&
       data.output[0].content[0] &&
-      (data.output[0].content[0].json ||
-        data.output[0].content[0].text);
+      typeof data.output[0].content[0].text === "string"
+    ) {
+      text = data.output[0].content[0].text;
+    }
 
-    if (!raw) {
+    if (!text) {
+      console.error("Kunde inte hitta text i AI-svar:", JSON.stringify(data));
       return NextResponse.json(
-        { error: "Kunde inte läsa ut JSON från AI-svaret", data },
+        { error: "Kunde inte läsa text/JSON från AI-svaret" },
         { status: 500 }
       );
     }
 
-    if (typeof raw === "string") {
-      try {
-        raw = JSON.parse(raw);
-      } catch (e) {
-        console.error("Kunde inte JSON-parsa raw:", raw);
-        return NextResponse.json(
-          { error: "Kunde inte parsa AI-JSON" },
-          { status: 500 }
-        );
-      }
+    // 🔹 Försök parsa JSON från texten modellen gav
+    let parsed: any;
+    try {
+      parsed = JSON.parse(text);
+    } catch (e) {
+      console.error("Kunde inte JSON-parsa AI-svar:", text);
+      return NextResponse.json(
+        { error: "AI-svaret var inte giltig JSON", raw: text },
+        { status: 500 }
+      );
     }
 
-    const model: string = (raw.model as string) || "";
-    const serial: string = (raw.serial as string) || "";
+    const model: string = (parsed && parsed.model) || "";
+    const serial: string = (parsed && parsed.serial) || "";
 
     return NextResponse.json({ model, serial });
   } catch (err: any) {
     console.error(err);
     return NextResponse.json(
-      { error: "Internt fel: " + (err && err.message ? err.message : "okänt fel") },
+      {
+        error:
+          "Internt fel: " +
+          (err && err.message ? err.message : "okänt fel"),
+      },
       { status: 500 }
     );
   }
