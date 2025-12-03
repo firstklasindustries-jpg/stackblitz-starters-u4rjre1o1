@@ -74,7 +74,7 @@ export default function Home() {
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
 
-  // AI-förslag
+   // AI-förslag
   const [aiSuggestion, setAiSuggestion] = useState<{
     model: string;
     serial: string;
@@ -82,9 +82,6 @@ export default function Home() {
 
   // NYTT: vy-läge (ägarvy / publik vy)
   const [viewMode, setViewMode] = useState<"owner" | "public">("owner");
-    model: string;
-    serial: string;
-  } | null>(null);
 
   // 👉 NYTT: värderings-state
   const [valuation, setValuation] = useState<{
