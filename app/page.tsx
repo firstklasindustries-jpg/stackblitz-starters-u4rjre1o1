@@ -82,7 +82,6 @@ export default function Home() {
 
   // NYTT: vy-läge (ägarvy / publik vy)
   const [viewMode, setViewMode] = useState<"owner" | "public">("owner");
-  
     model: string;
     serial: string;
   } | null>(null);
