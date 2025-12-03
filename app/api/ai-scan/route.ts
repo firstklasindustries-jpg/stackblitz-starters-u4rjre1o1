@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const hasKey = !!process.env.OPENAI_API_KEY;
-
-  return NextResponse.json({
-    ok: true,
-    hasKey,
-  });
+  const hasKey = Boolean(process.env.OPENAI_API_KEY);
+  return NextResponse.json({ ok: true, hasKey });
 }
 
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const imageUrl = body && body.imageUrl;
+
+    if (!imageUrl) {
+      return NextResponse.json(
+        { error: "imageUrl saknas" },
+        { status: 400 }
+      );
+    }
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -18,7 +25,7 @@ export async function GET() {
       );
     }
 
-    // 👇 Anropa OpenAI Vision (GPT-4.1 mini t.ex.)
+    // Anropa OpenAI Vision
     const openaiRes = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -75,11 +82,15 @@ export async function GET() {
 
     const data = await openaiRes.json();
 
-    // Försök plocka ut JSON:et – exakt struktur kan skilja lite beroende på API-version.
-    const raw =
-      data.output?.[0]?.content?.[0]?.json ??
-      data.output?.[0]?.content?.[0]?.text ??
-      null;
+    // Försök plocka ut JSON från svaret
+    let raw: any =
+      data &&
+      data.output &&
+      data.output[0] &&
+      data.output[0].content &&
+      data.output[0].content[0] &&
+      (data.output[0].content[0].json ||
+        data.output[0].content[0].text);
 
     if (!raw) {
       return NextResponse.json(
@@ -88,20 +99,31 @@ export async function GET() {
       );
     }
 
-    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (typeof raw === "string") {
+      try {
+        raw = JSON.parse(raw);
+      } catch (e) {
+        console.error("Kunde inte JSON-parsa raw:", raw);
+        return NextResponse.json(
+          { error: "Kunde inte parsa AI-JSON" },
+          { status: 500 }
+        );
+      }
+    }
 
-    const model = parsed.model ?? "";
-    const serial = parsed.serial ?? "";
+    const model: string = (raw.model as string) || "";
+    const serial: string = (raw.serial as string) || "";
 
     return NextResponse.json({ model, serial });
   } catch (err: any) {
     console.error(err);
     return NextResponse.json(
-      { error: "Internt fel: " + err?.message },
+      { error: "Internt fel: " + (err && err.message ? err.message : "okänt fel") },
       { status: 500 }
     );
   }
 }
+
 
 
 
