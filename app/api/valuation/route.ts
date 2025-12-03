@@ -1,57 +1,63 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
 
 export async function POST(req: Request) {
   try {
-    const { machineId } = await req.json();
+    const body = await req.json();
+    const model: string | null = body.model ?? null;
+    const createdAt: string | null = body.createdAt ?? null;
 
-    const { data: machine, error } = await supabase
-      .from("machines")
-      .select("*")
-      .eq("id", machineId)
-      .single();
+    // 🔹 Basvärde (väldigt enkel MVP-logik)
+    let base = 500_000;
 
-    if (error || !machine) {
-      return NextResponse.json({ error: "Kunde inte läsa maskin" }, { status: 400 });
+    if (model) {
+      const m = model.toLowerCase();
+      if (m.includes("volvo")) base = 900_000;
+      else if (m.includes("cat") || m.includes("caterpillar"))
+        base = 850_000;
+      else if (m.includes("komatsu")) base = 800_000;
+      else if (m.includes("hitachi")) base = 780_000;
     }
 
-    // === MVP REGLER ===
-    let base = 500_000; // default basvärde
+    // 🔹 Justera för ålder utifrån created_at som proxy (MVP)
+    let ageFactor = 1;
+    if (createdAt) {
+      const year = new Date(createdAt).getFullYear();
+      const nowYear = new Date().getFullYear();
+      const ageYears = Math.max(0, nowYear - year);
 
-    // Justera bas på modell
-    if (machine.model?.toLowerCase().includes("volvo")) base += 200_000;
-    if (machine.model?.toLowerCase().includes("cat")) base += 150_000;
+      // varje år -4 %, max -40 %
+      const maxDrop = 0.4;
+      const drop = Math.min(maxDrop, ageYears * 0.04);
+      ageFactor = 1 - drop;
+    }
 
-    // Årsmodell
-    const yearFactor = Math.max(0.6, 1 - (2025 - machine.year) * 0.05);
+    // 🔹 Slumpa liten variation för att inte allt ser identiskt ut
+    const randomFactor = 0.95 + Math.random() * 0.1; // 0.95–1.05
 
-    // Timmar
-    let hourFactor = 1;
-    if (machine.hours > 10_000) hourFactor -= 0.25;
-    if (machine.hours < 3_000) hourFactor += 0.10;
+    const finalValue = Math.round(base * ageFactor * randomFactor);
 
-    const finalFactor = yearFactor * hourFactor;
-    const estimate = Math.round(base * finalFactor);
+    // 🔹 Confidence – bara en enkel siffra 70–90 %
+    const confidence = 70 + Math.round(Math.random() * 20);
 
-    const confidence = Math.round(70 + Math.random() * 20);
+    const comment = model
+      ? `Automatisk MVP-värdering baserad på modell "${model}" och ungefärlig ålder.`
+      : "Automatisk MVP-värdering baserad på standardvärde och ålder.";
 
-    // Spara
-    const { data: valuation } = await supabase
-      .from("valuations")
-      .insert({
-        machine_id: machine.id,
-        estimated_value: estimate,
-        confidence,
-        comment: "Automatisk MVP-värdering baserat på modell, år & timmar.",
-      })
-      .select()
-      .single();
-
-    return NextResponse.json(valuation);
-
-  } catch (err: any) {
     return NextResponse.json({
-      error: err.message || "Internt serverfel",
-    }, {status:500});
+      estimated_value: finalValue,
+      confidence,
+      comment,
+    });
+  } catch (err: any) {
+    console.error(err);
+    return NextResponse.json(
+      {
+        error:
+          "Internt fel vid värdering: " +
+          (err?.message || "okänt fel"),
+      },
+      { status: 500 }
+    );
   }
 }
+
