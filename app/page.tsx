@@ -542,7 +542,8 @@ export default function Home() {
               </p>
   
     {/* 👉 NYTT: Värderings-knapp + resultat, bara i ÄGARVY */}
-    {isOwnerView && (
+
+     {isOwnerView && (
       <div className="mb-4">
         <button
           type="button"
@@ -554,7 +555,11 @@ export default function Home() {
               const res = await fetch("/api/valuation", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ machineId: selectedMachine.id }),
+                body: JSON.stringify({
+                  machineId: selectedMachine.id,
+                  model: selectedMachine.model,
+                  createdAt: selectedMachine.created_at,
+                }),
               });
 
               const data = await res.json();
@@ -571,7 +576,7 @@ export default function Home() {
               setValuation({
                 estimated_value: data.estimated_value,
                 confidence: data.confidence,
-                comment: data.comment,
+                comment: data.comment ?? null,
               });
             } catch (err: any) {
               console.error(err);
@@ -605,6 +610,7 @@ export default function Home() {
         )}
       </div>
     )}
+
               {/* Bildvisning */}
               {selectedMachine.image_url ? (
                 <div className="mb-4">
