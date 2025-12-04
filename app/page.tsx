@@ -59,6 +59,9 @@ export default function Home() {
   const [model, setModel] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
   const [savingMachine, setSavingMachine] = useState(false);
+  const [year, setYear] = useState<string>("");
+  const [hours, setHours] = useState<string>("");
+
 
   // valt maskinpass
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
@@ -157,13 +160,16 @@ export default function Home() {
 
     setSavingMachine(true);
 
-    const { error } = await supabase.from("machines").insert([
-      {
-        name,
-        model,
-        serial_number: serialNumber,
-      },
-    ]);
+  const { error } = await supabase.from("machines").insert([
+  {
+    name,
+    model,
+    serial_number: serialNumber,
+    year: year ? parseInt(year, 10) : null,
+    hours: hours ? parseInt(hours, 10) : null,
+  },
+]);
+
 
     if (error) {
       console.error(error);
@@ -172,6 +178,8 @@ export default function Home() {
       setName("");
       setModel("");
       setSerialNumber("");
+      setYear("");
+      setHours("");
       await fetchMachines();
     }
 
@@ -448,6 +456,7 @@ export default function Home() {
               onChange={(e) => setName(e.target.value)}
               className="border rounded-md px-3 py-2"
             />
+            
             <input
               type="text"
               placeholder="Modell"
@@ -455,13 +464,30 @@ export default function Home() {
               onChange={(e) => setModel(e.target.value)}
               className="border rounded-md px-3 py-2"
             />
+            
             <input
-              type="text"
-              placeholder="Serienummer"
-              value={serialNumber}
-              onChange={(e) => setSerialNumber(e.target.value)}
-              className="border rounded-md px-3 py-2"
-            />
+             type="number"
+             placeholder="Årsmodell (t.ex. 2018)"
+             value={year}
+             onChange={(e) => setYear(e.target.value)}
+             className="border rounded-md px-3 py-2"
+           />
+            
+          <input
+            type="number"
+            placeholder="Timmar (t.ex. 6200)"
+            value={hours}
+            onChange={(e) => setHours(e.target.value)}
+            className="border rounded-md px-3 py-2"
+          />
+
+          <input
+            type="text"
+            placeholder="Serienummer"
+            value={serialNumber}
+            onChange={(e) => setSerialNumber(e.target.value)}
+            className="border rounded-md px-3 py-2"
+          />
 
             <button
               type="submit"
@@ -490,10 +516,11 @@ export default function Home() {
                   }`}
                 >
                   <p className="font-semibold">{m.name}</p>
-                  <p className="text-sm text-gray-600">
-                    Modell: {m.model || "-"} • Serienr:{" "}
-                    {m.serial_number || "-"}
-                  </p>
+               <p className="text-sm text-gray-600">
+  Modell: {m.model || "-"} • År: {m.year || "-"} • Timmar:{" "}
+  {m.hours ?? "-"} • Serienr: {m.serial_number || "-"}
+</p>
+
                 </li>
               ))}
             </ul>
