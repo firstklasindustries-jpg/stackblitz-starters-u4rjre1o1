@@ -574,73 +574,75 @@ export default function Home() {
   
     {/* 👉 NYTT: Värderings-knapp + resultat, bara i ÄGARVY */}
 
-     {isOwnerView && (
-      <div className="mb-4">
-        <button
-          type="button"
-          onClick={async () => {
-            try {
-              setError(null);
-              setValuation(null);
+   {isOwnerView && (
+  <div className="mb-4">
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          setError(null);
+          setValuation(null);
 
-              const res = await fetch("/api/valuation", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  machineId: selectedMachine.id,
-                  model: selectedMachine.model,
-                  createdAt: selectedMachine.created_at,
-                }),
-              });
+          const res = await fetch("/api/valuation", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            // 👉 HÄR lägger du in body med machineId, model, year, hours
+            body: JSON.stringify({
+              machineId: selectedMachine.id,
+              model: selectedMachine.model,
+              year: selectedMachine.year,
+              hours: selectedMachine.hours,
+            }),
+          });
 
-              const data = await res.json();
+          const data = await res.json();
 
-              if (!res.ok) {
-                console.error(data);
-                setError(
-                  "Kunde inte beräkna värde: " +
-                    (data.error || "okänt fel")
-                );
-                return;
-              }
+          if (!res.ok) {
+            console.error(data);
+            setError(
+              "Kunde inte beräkna värde: " +
+                (data.error || "okänt fel")
+            );
+            return;
+          }
 
-              setValuation({
-                estimated_value: data.estimated_value,
-                confidence: data.confidence,
-                comment: data.comment ?? null,
-              });
-            } catch (err: any) {
-              console.error(err);
-              setError(
-                "Värderingsfel: " + (err?.message || "något gick fel")
-              );
-            }
-          }}
-          className="text-xs bg-slate-900 text-white px-3 py-1 rounded"
-        >
-          🧮 Beräkna marknadsvärde
-        </button>
+          setValuation({
+            estimated_value: data.estimated_value,
+            confidence: data.confidence,
+            comment: data.comment ?? null,
+          });
+        } catch (err: any) {
+          console.error(err);
+          setError(
+            "Värderingsfel: " + (err?.message || "något gick fel")
+          );
+        }
+      }}
+      className="text-xs bg-slate-900 text-white px-3 py-1 rounded"
+    >
+      🧮 Beräkna marknadsvärde
+    </button>
 
-        {valuation && (
-          <div className="mt-2 border rounded-lg p-3 bg-amber-50">
-            <p className="text-sm font-semibold">
-              Beräknat värde:{" "}
-              <span className="text-amber-900">
-                {valuation.estimated_value.toLocaleString("sv-SE")} kr
-              </span>
-            </p>
-            <p className="text-xs text-gray-600">
-              Tillförlitlighet: {valuation.confidence} %
-            </p>
-            {valuation.comment && (
-              <p className="text-xs text-gray-700 mt-1">
-                {valuation.comment}
-              </p>
-            )}
-          </div>
+    {valuation && (
+      <div className="mt-2 border rounded-lg p-3 bg-amber-50">
+        <p className="text-sm font-semibold">
+          Beräknat värde:{" "}
+          <span className="text-amber-900">
+            {valuation.estimated_value.toLocaleString("sv-SE")} kr
+          </span>
+        </p>
+        <p className="text-xs text-gray-600">
+          Tillförlitlighet: {valuation.confidence} %
+        </p>
+        {valuation.comment && (
+          <p className="text-xs text-gray-700 mt-1">
+            {valuation.comment}
+          </p>
         )}
       </div>
     )}
+  </div>
+)}
 
               {/* Bildvisning */}
               {selectedMachine.image_url ? (
