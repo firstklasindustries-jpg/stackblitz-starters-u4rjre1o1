@@ -4,11 +4,11 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const model: string | null = body.model ?? null;
-    const createdAt: string | null = body.createdAt ?? null;
+    const year: number | null = body.year ?? null;
+    const hours: number | null = body.hours ?? null;
 
-    // 🔹 Basvärde (väldigt enkel MVP-logik)
+    // 🔹 Basvärde från modell
     let base = 500_000;
-
     if (model) {
       const m = model.toLowerCase();
       if (m.includes("volvo")) base = 900_000;
@@ -18,35 +18,46 @@ export async function POST(req: Request) {
       else if (m.includes("hitachi")) base = 780_000;
     }
 
-    // 🔹 Justera för ålder utifrån created_at som proxy (MVP)
+    // 🔹 Ålder
     let ageFactor = 1;
-    if (createdAt) {
-      const year = new Date(createdAt).getFullYear();
+    if (year) {
       const nowYear = new Date().getFullYear();
       const ageYears = Math.max(0, nowYear - year);
-
-      // varje år -4 %, max -40 %
-      const maxDrop = 0.4;
-      const drop = Math.min(maxDrop, ageYears * 0.04);
+      const maxDrop = 0.5;
+      const drop = Math.min(maxDrop, ageYears * 0.05); // -5% per år
       ageFactor = 1 - drop;
     }
 
-    // 🔹 Slumpa liten variation för att inte allt ser identiskt ut
-    const randomFactor = 0.95 + Math.random() * 0.1; // 0.95–1.05
+    // 🔹 Timmar
+    let hourFactor = 1;
+    if (typeof hours === "number") {
+      if (hours > 12_000) hourFactor -= 0.3;
+      else if (hours > 8_000) hourFactor -= 0.2;
+      else if (hours > 5_000) hourFactor -= 0.1;
+      else if (hours < 3_000) hourFactor += 0.05;
+    }
 
-    const finalValue = Math.round(base * ageFactor * randomFactor);
+    const randomFactor = 0.95 + Math.random() * 0.1;
 
-    // 🔹 Confidence – bara en enkel siffra 70–90 %
+    const finalValue = Math.round(base * ageFactor * hourFactor * randomFactor);
     const confidence = 70 + Math.round(Math.random() * 20);
 
-    const comment = model
-      ? `Automatisk MVP-värdering baserad på modell "${model}" och ungefärlig ålder.`
-      : "Automatisk MVP-värdering baserad på standardvärde och ålder.";
+    const commentParts = [];
+    if (model) commentParts.push(`modell "${model}"`);
+    if (year) commentParts.push(`årsmodell ${year}`);
+    if (typeof hours === "number") commentParts.push(`${hours} timmar`);
+
+    const commentBase =
+      commentParts.length > 0
+        ? "Automatisk MVP-värdering baserad på " +
+          commentParts.join(", ") +
+          "."
+        : "Automatisk MVP-värdering baserad på standardvärden.";
 
     return NextResponse.json({
       estimated_value: finalValue,
       confidence,
-      comment,
+      comment: commentBase,
     });
   } catch (err: any) {
     console.error(err);
@@ -60,4 +71,3 @@ export async function POST(req: Request) {
     );
   }
 }
-
