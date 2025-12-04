@@ -15,7 +15,11 @@ type Machine = {
   serial_number: string | null;
   created_at: string;
   image_url: string | null;
+
+  year: number | null;
+  hours: number | null;
 };
+
 
 type MachineEvent = {
   id: string;
