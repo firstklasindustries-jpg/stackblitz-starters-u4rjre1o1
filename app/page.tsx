@@ -918,25 +918,7 @@ export default function Home() {
                 </div>
               )}
 
-              {/* AI-autofyll – bara i ägarvy */}
-              {isOwnerView && (
-                <div className="mb-6">
-                  <button
-                    type="button"
-                    onClick={handleAiDemo}
-                    className="text-xs bg-purple-600 text-white px-3 py-1 rounded"
-                  >
-                    Testa AI-autofyll
-                  </button>
-                  {aiSuggestion && (
-                    <p className="text-xs text-gray-700 mt-2">
-                      AI-förslag: Modell:{" "}
-                      <strong>{aiSuggestion.model}</strong>, Serienr:{" "}
-                      <strong>{aiSuggestion.serial}</strong>
-                    </p>
-                  )}
-                </div>
-              )}
+  
 
               <div className="mb-6">
                 <h3 className="font-semibold mb-2">Lägg till händelse</h3>
