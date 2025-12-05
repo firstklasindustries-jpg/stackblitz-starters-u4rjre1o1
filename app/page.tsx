@@ -538,7 +538,104 @@ export default function Home() {
     (isOwnerView
       ? selectedMachine.serial_number || "-"
       : maskSerial(selectedMachine.serial_number));
+  const handleNewMachineImageChange = async (
+    e: ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
+    setError(null);
+    setUploadingNewMachineImage(true);
+
+    try {
+      const filePath = `new/${Date.now()}-${file.name}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("machine-images")
+        .upload(filePath, file);
+
+      if (uploadError) {
+        console.error(uploadError);
+        setError("Kunde inte ladda upp bild för ny maskin.");
+        setUploadingNewMachineImage(false);
+        return;
+      }
+
+      const { data: publicData } = supabase.storage
+        .from("machine-images")
+        .getPublicUrl(filePath);
+
+      const publicUrl = publicData.publicUrl;
+      setNewMachineImageUrl(publicUrl);
+    } catch (err) {
+      console.error(err);
+      setError("Något gick fel vid bilduppladdning för ny maskin.");
+    }
+
+    setUploadingNewMachineImage(false);
+  };
+
+  const handleNewMachineAi = async () => {
+    if (!newMachineImageUrl) {
+      setError("Ladda upp en bild på maskinen först.");
+      return;
+    }
+
+    setError(null);
+    setLoadingNewMachineAi(true);
+
+    try {
+      const res = await fetch("/api/ai-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageUrl: newMachineImageUrl,
+        }),
+      });
+
+      const text = await res.text();
+
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("AI gav inte JSON:", text);
+        setError("AI-backend gav inte JSON när vi läste ny maskin.");
+        setLoadingNewMachineAi(false);
+        return;
+      }
+
+      if (!res.ok) {
+        console.error(data);
+        setError("AI-fel: " + (data.error || "okänt fel vid ny maskin."));
+        setLoadingNewMachineAi(false);
+        return;
+      }
+
+      const modelFromAi = data.model || "";
+      const serialFromAi = data.serial || "";
+
+      if (modelFromAi) {
+        setModel(modelFromAi);
+        if (!name) {
+          setName(modelFromAi);
+        }
+      }
+      if (serialFromAi) {
+        setSerialNumber(serialFromAi);
+      }
+
+      setLoadingNewMachineAi(false);
+    } catch (err: any) {
+      console.error(err);
+      setError(
+        "Kunde inte kontakta AI-backend för ny maskin: " + err?.message
+      );
+      setLoadingNewMachineAi(false);
+    }
+  };
+
+  
   return (
     <main className="min-h-screen flex flex-col items-center p-6 gap-8 bg-slate-50">
       <h1 className="text-3xl font-bold">Arctic Trace – MVP</h1>
