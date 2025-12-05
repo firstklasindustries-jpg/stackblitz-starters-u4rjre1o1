@@ -97,6 +97,14 @@ export default function Home() {
     comment: string | null;
   } | null>(null);
 
+   // NYTT: AI-first för ny maskin
+  const [newMachineImageUrl, setNewMachineImageUrl] = useState<string | null>(
+    null
+  );
+  const [uploadingNewMachineImage, setUploadingNewMachineImage] =
+    useState(false);
+  const [loadingNewMachineAi, setLoadingNewMachineAi] = useState(false);
+
   // hämta alla maskiner
   const fetchMachines = async () => {
     setLoadingMachines(true);
@@ -381,6 +389,107 @@ export default function Home() {
   
     setError(null);
     setAiSuggestion(null);
+
+      // Ladda upp bild för NY maskin (innan den finns i databasen)
+  const handleNewMachineImageChange = async (
+    e: ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setError(null);
+    setUploadingNewMachineImage(true);
+
+    try {
+      const filePath = `new/${Date.now()}-${file.name}`;
+
+      const { error: uploadError, data } = await supabase.storage
+        .from("machine-images") // samma bucket som för befintliga maskiner
+        .upload(filePath, file);
+
+      if (uploadError) {
+        console.error(uploadError);
+        setError("Kunde inte ladda upp bild för ny maskin.");
+        setUploadingNewMachineImage(false);
+        return;
+      }
+
+      const { data: publicData } = supabase.storage
+        .from("machine-images")
+        .getPublicUrl(filePath);
+
+      const publicUrl = publicData.publicUrl;
+      setNewMachineImageUrl(publicUrl);
+    } catch (err) {
+      console.error(err);
+      setError("Något gick fel vid bilduppladdning för ny maskin.");
+    }
+
+    setUploadingNewMachineImage(false);
+  };
+
+  // AI-first: läs av modell/serienr från bild och fyll i formulärfälten
+  const handleNewMachineAi = async () => {
+    if (!newMachineImageUrl) {
+      setError("Ladda upp en bild på maskinen först.");
+      return;
+    }
+
+    setError(null);
+    setLoadingNewMachineAi(true);
+
+    try {
+      const res = await fetch("/api/ai-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageUrl: newMachineImageUrl,
+        }),
+      });
+
+      const text = await res.text();
+
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("AI gav inte JSON:", text);
+        setError("AI-backend gav inte JSON när vi läste ny maskin.");
+        setLoadingNewMachineAi(false);
+        return;
+      }
+
+      if (!res.ok) {
+        console.error(data);
+        setError("AI-fel: " + (data.error || "okänt fel vid ny maskin."));
+        setLoadingNewMachineAi(false);
+        return;
+      }
+
+      // Fyll i formulärfälten baserat på AI-svar
+      const modelFromAi = data.model || "";
+      const serialFromAi = data.serial || "";
+
+      if (modelFromAi) {
+        setModel(modelFromAi);
+        if (!name) {
+          setName(modelFromAi); // enkel default: namn = modell
+        }
+      }
+      if (serialFromAi) {
+        setSerialNumber(serialFromAi);
+      }
+
+      setLoadingNewMachineAi(false);
+    } catch (err: any) {
+      console.error(err);
+      setError(
+        "Kunde inte kontakta AI-backend för ny maskin: " + err?.message
+      );
+      setLoadingNewMachineAi(false);
+    }
+  };
+
   
     try {
       const res = await fetch("/api/ai-scan", {
@@ -443,12 +552,50 @@ export default function Home() {
 
       <section className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Vänster sida: maskinregister */}
-        <div className="bg-white shadow-md rounded-xl p-6">
+               <div className="bg-white shadow-md rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-3">Lägg till maskin</h2>
+
+          {/* 🔹 Steg 1: Bild + AI-förslag */}
+          <div className="mb-4">
+            <p className="text-sm font-semibold mb-1">
+              1. Ladda upp bild (typskylt / maskin)
+            </p>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleNewMachineImageChange}
+              className="text-sm"
+            />
+            {uploadingNewMachineImage && (
+              <p className="text-xs text-gray-500 mt-1">
+                Laddar upp bild...
+              </p>
+            )}
+            {newMachineImageUrl && (
+              <p className="text-xs text-emerald-600 mt-1">
+                Bild uppladdad – redo för AI.
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={handleNewMachineAi}
+              disabled={loadingNewMachineAi || !newMachineImageUrl}
+              className="mt-2 text-xs bg-purple-600 text-white px-3 py-1 rounded disabled:opacity-60"
+            >
+              {loadingNewMachineAi
+                ? "Läser av med AI..."
+                : "🔍 AI: fyll i modell & serienr från bild"}
+            </button>
+          </div>
+
+          {/* 🔹 Steg 2: Formulär – AI fyller i, du justerar */}
           <form
             onSubmit={handleAddMachine}
             className="flex flex-col gap-3 mb-6"
           >
+            <p className="text-sm font-semibold">2. Kontrollera & komplettera</p>
+
             <input
               type="text"
               placeholder="Namn (t.ex. Cat 966 hjullastare)"
@@ -456,7 +603,6 @@ export default function Home() {
               onChange={(e) => setName(e.target.value)}
               className="border rounded-md px-3 py-2"
             />
-            
             <input
               type="text"
               placeholder="Modell"
@@ -464,39 +610,37 @@ export default function Home() {
               onChange={(e) => setModel(e.target.value)}
               className="border rounded-md px-3 py-2"
             />
-            
             <input
-             type="number"
-             placeholder="Årsmodell (t.ex. 2018)"
-             value={year}
-             onChange={(e) => setYear(e.target.value)}
-             className="border rounded-md px-3 py-2"
-           />
-            
-          <input
-            type="number"
-            placeholder="Timmar (t.ex. 6200)"
-            value={hours}
-            onChange={(e) => setHours(e.target.value)}
-            className="border rounded-md px-3 py-2"
-          />
-
-          <input
-            type="text"
-            placeholder="Serienummer"
-            value={serialNumber}
-            onChange={(e) => setSerialNumber(e.target.value)}
-            className="border rounded-md px-3 py-2"
-          />
+              type="text"
+              placeholder="Serienummer"
+              value={serialNumber}
+              onChange={(e) => setSerialNumber(e.target.value)}
+              className="border rounded-md px-3 py-2"
+            />
+            <input
+              type="number"
+              placeholder="Årsmodell (t.ex. 2018)"
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              className="border rounded-md px-3 py-2"
+            />
+            <input
+              type="number"
+              placeholder="Timmar (t.ex. 6200)"
+              value={hours}
+              onChange={(e) => setHours(e.target.value)}
+              className="border rounded-md px-3 py-2"
+            />
 
             <button
               type="submit"
               disabled={savingMachine}
               className="bg-blue-600 text-white rounded-md py-2 font-semibold disabled:opacity-60"
             >
-              {savingMachine ? "Sparar..." : "Lägg till maskin"}
+              {savingMachine ? "Sparar..." : "Spara maskin"}
             </button>
           </form>
+
 
           <h2 className="text-xl font-semibold mb-3">Dina maskiner</h2>
           {loadingMachines ? (
