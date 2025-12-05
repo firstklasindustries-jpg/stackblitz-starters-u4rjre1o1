@@ -390,7 +390,7 @@ export default function Home() {
     setError(null);
     setAiSuggestion(null);
 
-      // Ladda upp bild för NY maskin (innan den finns i databasen)
+    // Ladda upp bild för NY maskin (innan den finns i databasen)
   const handleNewMachineImageChange = async (
     e: ChangeEvent<HTMLInputElement>
   ) => {
@@ -403,7 +403,7 @@ export default function Home() {
     try {
       const filePath = `new/${Date.now()}-${file.name}`;
 
-      const { error: uploadError, data } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from("machine-images") // samma bucket som för befintliga maskiner
         .upload(filePath, file);
 
@@ -466,7 +466,6 @@ export default function Home() {
         return;
       }
 
-      // Fyll i formulärfälten baserat på AI-svar
       const modelFromAi = data.model || "";
       const serialFromAi = data.serial || "";
 
