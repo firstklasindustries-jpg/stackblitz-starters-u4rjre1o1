@@ -97,6 +97,16 @@ export default function Home() {
     comment: string | null;
   } | null>(null);
 
+  const [condition, setCondition] = useState<{
+  condition_score: number;
+  condition_label: string;
+  notes: string;
+  risk_flags: string[];
+} | null>(null);
+
+const [loadingCondition, setLoadingCondition] = useState(false);
+
+
    // NYTT: AI-first för ny maskin
   const [newMachineImageUrl, setNewMachineImageUrl] = useState<string | null>(
     null
