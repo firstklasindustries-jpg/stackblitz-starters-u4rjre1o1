@@ -837,13 +837,13 @@ const [loadingCondition, setLoadingCondition] = useState(false);
               const res = await fetch("/api/valuation", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  machineId: selectedMachine.id,
-                  model: selectedMachine.model,
-                  year: selectedMachine.year,
-                  hours: selectedMachine.hours,
-                }),
-              });
+                  body: JSON.stringify({
+    machineId: selectedMachine.id,
+    model: selectedMachine.model,
+    year: selectedMachine.year,
+    hours: selectedMachine.hours,
+    conditionScore: condition?.condition_score ?? null, // 👈 NYTT
+  }),
 
               const data = await res.json();
 
