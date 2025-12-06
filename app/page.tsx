@@ -824,7 +824,7 @@ const [loadingCondition, setLoadingCondition] = useState(false);
   
     {/* 👉 NYTT: Värderings-knapp + resultat, bara i ÄGARVY */}
 
-    {isOwnerView && (
+        {isOwnerView && (
       <div className="mb-4 space-y-2">
         {/* 🧮 Värderingsknapp */}
         <button
@@ -837,13 +837,14 @@ const [loadingCondition, setLoadingCondition] = useState(false);
               const res = await fetch("/api/valuation", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-    machineId: selectedMachine.id,
-    model: selectedMachine.model,
-    year: selectedMachine.year,
-    hours: selectedMachine.hours,
-    conditionScore: condition?.condition_score ?? null, // 👈 NYTT
-  }),
+                body: JSON.stringify({
+                  machineId: selectedMachine.id,
+                  model: selectedMachine.model,
+                  year: selectedMachine.year,
+                  hours: selectedMachine.hours,
+                  conditionScore: condition?.condition_score ?? null,
+                }),
+              });
 
               const data = await res.json();
 
