@@ -814,75 +814,153 @@ export default function Home() {
   
     {/* 👉 NYTT: Värderings-knapp + resultat, bara i ÄGARVY */}
 
-   {isOwnerView && (
-  <div className="mb-4">
-    <button
-      type="button"
-      onClick={async () => {
-        try {
-          setError(null);
-          setValuation(null);
+    {isOwnerView && (
+      <div className="mb-4 space-y-2">
+        {/* 🧮 Värderingsknapp */}
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              setError(null);
+              setValuation(null);
 
-          const res = await fetch("/api/valuation", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            // 👉 HÄR lägger du in body med machineId, model, year, hours
-            body: JSON.stringify({
-              machineId: selectedMachine.id,
-              model: selectedMachine.model,
-              year: selectedMachine.year,
-              hours: selectedMachine.hours,
-            }),
-          });
+              const res = await fetch("/api/valuation", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  machineId: selectedMachine.id,
+                  model: selectedMachine.model,
+                  year: selectedMachine.year,
+                  hours: selectedMachine.hours,
+                }),
+              });
 
-          const data = await res.json();
+              const data = await res.json();
 
-          if (!res.ok) {
-            console.error(data);
-            setError(
-              "Kunde inte beräkna värde: " +
-                (data.error || "okänt fel")
-            );
-            return;
-          }
+              if (!res.ok) {
+                console.error(data);
+                setError(
+                  "Kunde inte beräkna värde: " +
+                    (data.error || "okänt fel")
+                );
+                return;
+              }
 
-          setValuation({
-            estimated_value: data.estimated_value,
-            confidence: data.confidence,
-            comment: data.comment ?? null,
-          });
-        } catch (err: any) {
-          console.error(err);
-          setError(
-            "Värderingsfel: " + (err?.message || "något gick fel")
-          );
-        }
-      }}
-      className="text-xs bg-slate-900 text-white px-3 py-1 rounded"
-    >
-      🧮 Beräkna marknadsvärde
-    </button>
+              setValuation({
+                estimated_value: data.estimated_value,
+                confidence: data.confidence,
+                comment: data.comment ?? null,
+              });
+            } catch (err: any) {
+              console.error(err);
+              setError(
+                "Värderingsfel: " + (err?.message || "något gick fel")
+              );
+            }
+          }}
+          className="text-xs bg-slate-900 text-white px-3 py-1 rounded"
+        >
+          🧮 Beräkna marknadsvärde
+        </button>
 
-    {valuation && (
-      <div className="mt-2 border rounded-lg p-3 bg-amber-50">
-        <p className="text-sm font-semibold">
-          Beräknat värde:{" "}
-          <span className="text-amber-900">
-            {valuation.estimated_value.toLocaleString("sv-SE")} kr
-          </span>
-        </p>
-        <p className="text-xs text-gray-600">
-          Tillförlitlighet: {valuation.confidence} %
-        </p>
-        {valuation.comment && (
-          <p className="text-xs text-gray-700 mt-1">
-            {valuation.comment}
-          </p>
+        {valuation && (
+          <div className="border rounded-lg p-3 bg-amber-50">
+            <p className="text-sm font-semibold">
+              Beräknat värde:{" "}
+              <span className="text-amber-900">
+                {valuation.estimated_value.toLocaleString("sv-SE")} kr
+              </span>
+            </p>
+            <p className="text-xs text-gray-600">
+              Tillförlitlighet: {valuation.confidence} %
+            </p>
+            {valuation.comment && (
+              <p className="text-xs text-gray-700 mt-1">
+                {valuation.comment}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* 🧠 AI-bedöm skick */}
+        <button
+          type="button"
+          onClick={async () => {
+            if (!selectedMachine?.image_url) {
+              setError("Ladda upp en bild på maskinen först.");
+              return;
+            }
+
+            setError(null);
+            setLoadingCondition(true);
+            setCondition(null);
+
+            try {
+              const res = await fetch("/api/condition", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  imageUrl: selectedMachine.image_url,
+                }),
+              });
+
+              const data = await res.json();
+
+              if (!res.ok) {
+                console.error(data);
+                setError(
+                  "Kunde inte bedöma skick: " +
+                    (data.error || "okänt fel")
+                );
+                setLoadingCondition(false);
+                return;
+              }
+
+              setCondition({
+                condition_score: data.condition_score,
+                condition_label: data.condition_label,
+                notes: data.notes,
+                risk_flags: data.risk_flags ?? [],
+              });
+              setLoadingCondition(false);
+            } catch (err: any) {
+              console.error(err);
+              setError(
+                "AI-skickbedömning misslyckades: " +
+                  (err?.message || "okänt fel")
+              );
+              setLoadingCondition(false);
+            }
+          }}
+          className="text-xs bg-emerald-700 text-white px-3 py-1 rounded disabled:opacity-60"
+          disabled={loadingCondition}
+        >
+          {loadingCondition
+            ? "AI bedömer skick..."
+            : "🧠 AI-bedöm skick från bild"}
+        </button>
+
+        {condition && (
+          <div className="border rounded-lg p-3 bg-emerald-50">
+            <p className="text-sm font-semibold">
+              Skick: {condition.condition_label} (
+              {condition.condition_score}/5)
+            </p>
+            {condition.notes && (
+              <p className="text-xs text-gray-700 mt-1">
+                {condition.notes}
+              </p>
+            )}
+            {condition.risk_flags && condition.risk_flags.length > 0 && (
+              <p className="text-[11px] text-red-700 mt-1">
+                Risker: {condition.risk_flags.join(", ")}
+              </p>
+            )}
+          </div>
         )}
       </div>
     )}
-  </div>
-)}
+
 
               {/* Bildvisning */}
               {selectedMachine.image_url ? (
