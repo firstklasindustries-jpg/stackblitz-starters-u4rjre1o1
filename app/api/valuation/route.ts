@@ -6,6 +6,7 @@ export async function POST(req: Request) {
     const model: string | null = body.model ?? null;
     const year: number | null = body.year ?? null;
     const hours: number | null = body.hours ?? null;
+    const conditionScore: number | null = body.conditionScore ?? null; // 👈 NYTT
 
     // 🔹 Basvärde från modell
     let base = 500_000;
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
       const nowYear = new Date().getFullYear();
       const ageYears = Math.max(0, nowYear - year);
       const maxDrop = 0.5;
-      const drop = Math.min(maxDrop, ageYears * 0.05); // -5% per år
+      const drop = Math.min(maxDrop, ageYears * 0.05); // -5% per år, max -50%
       ageFactor = 1 - drop;
     }
 
@@ -37,15 +38,43 @@ export async function POST(req: Request) {
       else if (hours < 3_000) hourFactor += 0.05;
     }
 
-    const randomFactor = 0.95 + Math.random() * 0.1;
+    // 🔹 Skick-faktor (från AI-bedömning 1–5)
+    let conditionFactor = 1;
+    let conditionText = "";
 
-    const finalValue = Math.round(base * ageFactor * hourFactor * randomFactor);
+    if (typeof conditionScore === "number") {
+      if (conditionScore >= 5) {
+        conditionFactor += 0.10; // +10% vid toppskick
+        conditionText = "Justering: mycket bra skick (AI-bedömning).";
+      } else if (conditionScore === 4) {
+        conditionFactor += 0.05; // +5%
+        conditionText = "Justering: bra skick (AI-bedömning).";
+      } else if (conditionScore === 3) {
+        // ingen ändring
+        conditionText = "Justering: normalt skick (AI-bedömning).";
+      } else if (conditionScore === 2) {
+        conditionFactor -= 0.12; // -12%
+        conditionText = "Justering: slitet skick (AI-bedömning).";
+      } else if (conditionScore <= 1) {
+        conditionFactor -= 0.2; // -20%
+        conditionText = "Justering: mycket dåligt skick (AI-bedömning).";
+      }
+    }
+
+    // 🔹 Liten random-variation så alla värden inte ser identiska ut
+    const randomFactor = 0.95 + Math.random() * 0.1; // 0.95–1.05
+
+    const finalValue = Math.round(
+      base * ageFactor * hourFactor * conditionFactor * randomFactor
+    );
     const confidence = 70 + Math.round(Math.random() * 20);
 
-    const commentParts = [];
+    const commentParts: string[] = [];
+
     if (model) commentParts.push(`modell "${model}"`);
     if (year) commentParts.push(`årsmodell ${year}`);
     if (typeof hours === "number") commentParts.push(`${hours} timmar`);
+    if (conditionText) commentParts.push(conditionText);
 
     const commentBase =
       commentParts.length > 0
