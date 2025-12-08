@@ -1116,7 +1116,7 @@ const [loadingCondition, setLoadingCondition] = useState(false);
 // app/page.tsx
 import { createMachineWithLead } from "./actions/createMachineWithLead";
 
-export default function HomePage() {
+ function HomePage() {
   return (
     <main className="p-6">
       <h1 className="text-xl font-bold mb-4">Skicka värderingsförfrågan</h1>
