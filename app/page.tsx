@@ -1113,3 +1113,133 @@ const [loadingCondition, setLoadingCondition] = useState(false);
     </main>
   );
 }
+// app/page.tsx
+import { createMachineWithLead } from "./actions/createMachineWithLead";
+
+export default function HomePage() {
+  return (
+    <main className="p-6">
+      <h1 className="text-xl font-bold mb-4">Skicka värderingsförfrågan</h1>
+
+      <form action={createMachineWithLead} className="space-y-4">
+        {/* Maskindata */}
+        <div>
+          <label className="block text-sm font-medium">Brand</label>
+          <input
+            name="brand"
+            className="border px-2 py-1 w-full"
+            placeholder="Volvo"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium">Model</label>
+          <input
+            name="model"
+            className="border px-2 py-1 w-full"
+            placeholder="L70H"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium">Årsmodell</label>
+          <input
+            type="number"
+            name="year"
+            className="border px-2 py-1 w-full"
+            placeholder="2018"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium">Timmar</label>
+          <input
+            type="number"
+            name="operating_hours"
+            className="border px-2 py-1 w-full"
+            placeholder="6500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium">Plats</label>
+          <input
+            name="location_text"
+            className="border px-2 py-1 w-full"
+            placeholder="Tromsø"
+          />
+        </div>
+
+        {/* Värderingsdata */}
+        <div>
+          <label className="block text-sm font-medium">Uppskattat värde (NOK)</label>
+          <input
+            type="number"
+            name="value_estimate"
+            className="border px-2 py-1 w-full"
+            placeholder="750000"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium">Skick (1–5)</label>
+          <input
+            type="number"
+            name="condition_score"
+            className="border px-2 py-1 w-full"
+            placeholder="4"
+            min={1}
+            max={5}
+          />
+        </div>
+
+        {/* Kontaktuppgifter */}
+        <div>
+          <label className="block text-sm font-medium">Namn</label>
+          <input
+            name="name"
+            className="border px-2 py-1 w-full"
+            placeholder="Ditt namn"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium">E-post</label>
+          <input
+            type="email"
+            name="email"
+            className="border px-2 py-1 w-full"
+            placeholder="du@example.com"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium">Telefon</label>
+          <input
+            name="phone"
+            className="border px-2 py-1 w-full"
+            placeholder="+47 ..."
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium">Meddelande</label>
+          <textarea
+            name="message"
+            className="border px-2 py-1 w-full"
+            placeholder="Beskriv maskinen, extrautrustning, fel osv."
+          />
+        </div>
+
+        <button
+          type="submit"
+          className="px-4 py-2 rounded bg-black text-white"
+        >
+          Skicka förfrågan
+        </button>
+      </form>
+    </main>
+  );
+}
