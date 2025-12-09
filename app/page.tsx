@@ -541,13 +541,56 @@ export default function Home() {
 
   return (
     <main className="min-h-screen flex flex-col items-center p-6 gap-8 bg-slate-50">
-      <h1 className="text-3xl font-bold">Arctic Trace – MVP</h1>
-      <p className="text-sm text-gray-600 mb-2 text-center">
-        Maskiner, historik, bilder, hash-kedja &amp; AI – med ägarvy och publik
-        vy.
-      </p>
+     return (
+  <main className="min-h-screen flex flex-col items-center p-6 gap-8 bg-slate-50">
+    {/* HERO */}
+    <section className="w-full max-w-5xl">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 text-white px-6 py-8 md:px-10 md:py-10 shadow-lg">
+        <div className="max-w-xl space-y-4">
+          <p className="text-xs uppercase tracking-[0.25em] text-slate-300">
+            Arctic Trace · MVP
+          </p>
+          <h1 className="text-3xl md:text-4xl font-bold leading-tight">
+            Digitalt maskinpass<br />för dina hjullastare
+          </h1>
+          <p className="text-sm md:text-base text-slate-200">
+            Samla historik, bilder och skick i ett digitalt pass. 
+            Få AI-värdering och skicka förfrågan på under 1 minut.
+          </p>
 
-      {error && <p className="text-red-500 text-sm">{error}</p>}
+          <ul className="text-xs md:text-sm space-y-1 text-slate-100">
+            <li>✅ Digitalt maskinpass per maskin</li>
+            <li>✅ AI-bedömning av skick &amp; marknadsvärde</li>
+            <li>✅ Kedjad historik som avslöjar fusk</li>
+            <li>✅ Byggd för framtida EU-krav (DPP-ready)</li>
+          </ul>
+
+          <div className="flex flex-wrap gap-3 pt-3">
+            <a
+              href="#machines"
+              className="inline-flex items-center justify-center rounded-full bg-white text-slate-900 text-sm font-semibold px-4 py-2 shadow-sm hover:bg-slate-100 transition"
+            >
+              Lägg in din första maskin
+            </a>
+            <a
+              href="#valuation-form"
+              className="inline-flex items-center justify-center rounded-full border border-slate-300 text-slate-50 text-sm font-semibold px-4 py-2 hover:bg-slate-800/50 transition"
+            >
+              Skicka värderingsförfrågan
+            </a>
+          </div>
+        </div>
+
+        {/* Dekorativ “tag” i hörnet */}
+        <div className="hidden md:block absolute right-6 top-6 text-right text-xs text-slate-300">
+          <p className="font-semibold">AI &amp; hashad historik</p>
+          <p>Byggd för tunga maskiner</p>
+        </div>
+      </div>
+    </section>
+
+    {/* FELMEDDELANDE */}
+    {error && <p className="text-red-500 text-sm">{error}</p>}
 
       <section className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Vänster sida: maskinregister */}
