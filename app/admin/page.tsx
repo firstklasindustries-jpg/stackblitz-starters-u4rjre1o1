@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
-
 type MachineSummary = {
   id: string;
   name: string | null;
@@ -23,7 +22,6 @@ type LeadWithMachine = {
   machines: MachineSummary[] | null;
 };
 
-
 export default function AdminPage() {
   const [leads, setLeads] = useState<LeadWithMachine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +32,6 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
 
-    // Hämtar leads + kopplad maskin (via FK machine_id -> machines.id)
     const { data, error } = await supabase
       .from("leads")
       .select(
@@ -60,10 +57,9 @@ export default function AdminPage() {
     if (error) {
       console.error(error);
       setError("Kunde inte hämta leads.");
-   } else {
-  setLeads((data || []) as unknown as LeadWithMachine[]);
-}
-
+    } else {
+      setLeads((data || []) as unknown as LeadWithMachine[]);
+    }
 
     setLoading(false);
   };
@@ -76,13 +72,13 @@ export default function AdminPage() {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     const machineName =
-      lead.machines?.name ||
-      lead.machines?.model ||
+      lead.machines?.[0]?.name ||
+      lead.machines?.[0]?.model ||
       "";
     return (
       lead.name.toLowerCase().includes(q) ||
       lead.email.toLowerCase().includes(q) ||
-      (machineName && machineName.toLowerCase().includes(q))
+      machineName.toLowerCase().includes(q)
     );
   });
 
@@ -93,7 +89,7 @@ export default function AdminPage() {
         <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">
-              Admin – leads & maskiner
+              Admin – leads &amp; maskiner
             </h1>
             <p className="text-sm text-slate-600">
               Senaste förfrågningar från värderingsformuläret, kopplat till
@@ -166,35 +162,71 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody>
-         {filteredLeads.map((lead) => {
-  const m = lead.machines?.[0] || null;
-  const date = new Date(lead.created_at).toLocaleString("sv-SE", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
+                  {filteredLeads.map((lead) => {
+                    const m = lead.machines?.[0] || null;
+                    const date = new Date(
+                      lead.created_at
+                    ).toLocaleString("sv-SE", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    });
 
-  return (
-    <tr key={lead.id} ...>
-      ...
-      <td className="px-4 py-2 align-top">
-        {m ? (
-          <>
-            <div className="font-medium text-slate-900">
-              {m.name || m.model || "Maskin"}
+                    return (
+                      <tr
+                        key={lead.id}
+                        className="border-b border-slate-100 hover:bg-slate-50/60"
+                      >
+                        <td className="px-4 py-2 align-top text-slate-700 whitespace-nowrap">
+                          {date}
+                        </td>
+                        <td className="px-4 py-2 align-top">
+                          <div className="font-semibold text-slate-900">
+                            {lead.name}
+                          </div>
+                          <div className="text-xs text-slate-600">
+                            {lead.email}
+                            {lead.phone && ` · ${lead.phone}`}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2 align-top">
+                          {m ? (
+                            <>
+                              <div className="font-medium text-slate-900">
+                                {m.name || m.model || "Maskin"}
+                              </div>
+                              <div className="text-xs text-slate-600">
+                                {m.model && `${m.model} · `}
+                                {m.year && `År ${m.year} · `}
+                                {typeof m.hours === "number" &&
+                                  `${m.hours} h`}
+                              </div>
+                            </>
+                          ) : (
+                            <span className="text-xs text-slate-400">
+                              Ingen maskin kopplad
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 align-top text-xs text-slate-600 whitespace-nowrap">
+                          {lead.source || "okänd"}
+                        </td>
+                        <td className="px-4 py-2 align-top text-xs text-slate-700 max-w-xs">
+                          {lead.message || (
+                            <span className="text-slate-400">
+                              Inget meddelande
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-            <div className="text-xs text-slate-600">
-              {m.model && `${m.model} · `}
-              {m.year && `År ${m.year} · `}
-              {typeof m.hours === "number" && `${m.hours} h`}
-            </div>
-          </>
-        ) : (
-          <span className="text-xs text-slate-400">
-            Ingen maskin kopplad
-          </span>
-        )}
-      </td>
-      ...
-    </tr>
+          )}
+        </section>
+      </div>
+    </main>
   );
-})}
+}
+
