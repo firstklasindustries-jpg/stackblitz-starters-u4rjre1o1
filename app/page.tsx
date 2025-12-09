@@ -592,7 +592,11 @@ export default function Home() {
     {/* FELMEDDELANDE */}
     {error && <p className="text-red-500 text-sm">{error}</p>}
 
-      <section className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6">
+      <section
+  id="machines"
+  className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6"
+>
+
         {/* Vänster sida: maskinregister */}
         <div className="bg-white shadow-md rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-3">Lägg till maskin</h2>
@@ -1049,7 +1053,11 @@ export default function Home() {
       </section>
 
       {/* Extra sektion: Skicka värderingsförfrågan (form mot API-route) */}
-      <section className="w-full max-w-xl bg-white shadow-md rounded-xl p-6">
+     <section
+  id="valuation-form"
+  className="w-full max-w-xl bg-white shadow-md rounded-xl p-6"
+>
+
         <h2 className="text-xl font-semibold mb-4">
           Skicka värderingsförfrågan
         </h2>
