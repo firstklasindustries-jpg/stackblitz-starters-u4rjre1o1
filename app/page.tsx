@@ -697,7 +697,7 @@ export default function Home() {
     } catch (err: any) {
       console.error(err);
       setLeadError(
-        "Något gick fel vid inskick. Försök igen eller kontakta Klas direkt."
+    
       );
       setLeadSubmitting(false);
     }
