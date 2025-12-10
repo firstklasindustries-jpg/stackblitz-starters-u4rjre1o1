@@ -1062,10 +1062,11 @@ export default function Home() {
         </h2>
 
         <form
-          action="/api/create-machine-with-lead"
-          method="POST"
-          className="space-y-4"
-        >
+    action="/api/lead"
+    method="POST"
+    className="space-y-4"
+  >
+
           {/* Maskindata */}
           <div>
             <label className="block text-sm font-medium">Brand</label>
