@@ -1,4 +1,4 @@
-// app/api/create-machine-with-lead/route.ts
+// app/api/lead/route.ts
 import { NextResponse } from "next/server";
 import { supabase } from "../../../lib/supabaseClient";
 
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     const phone = String(formData.get("phone") || "");
     const message = String(formData.get("message") || "");
 
-    // Maskindata (vi sparar inte i egen tabell nu, bara lägger in i message-text)
+    // Maskindata
     const brand = String(formData.get("brand") || "");
     const model = String(formData.get("model") || "");
     const year = formData.get("year")
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       ? Number(formData.get("condition_score"))
       : null;
 
-    // Bygg upp ett sammanfattande meddelande med maskindata
+    // Bygg upp maskininfo som text i leadet
     const machineInfo = [
       brand && `Brand: ${brand}`,
       model && `Model: ${model}`,
@@ -58,7 +58,6 @@ export async function POST(req: Request) {
 
     if (leadError) {
       console.error("Lead insert error:", leadError);
-      // Vi redirectar ändå, men med en enkel query-flag
       const url = new URL("/", req.url);
       url.searchParams.set("lead_error", "1");
       return NextResponse.redirect(url);
@@ -69,10 +68,19 @@ export async function POST(req: Request) {
     url.searchParams.set("sent", "1");
     return NextResponse.redirect(url);
   } catch (err: any) {
-    console.error("Unexpected error in create-machine-with-lead:", err);
+    console.error("Unexpected error in POST /api/lead:", err);
     const url = new URL("/", req.url);
     url.searchParams.set("server_error", "1");
     return NextResponse.redirect(url);
   }
 }
+
+// Om någon surfar GET direkt på /api/lead
+export async function GET() {
+  return NextResponse.json(
+    { ok: false, error: "Use POST" },
+    { status: 405 }
+  );
+}
+
 
