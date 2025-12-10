@@ -33,31 +33,46 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  const fetchLeads = async () => {
+const fetchLeads = async () => {
+  try {
+    setLoading(true);
+    setError(null);
+
+    const res = await fetch("/api/admin/leads");
+    const text = await res.text();
+
+    let data: ApiResponse;
     try {
-      setLoading(true);
-      setError(null);
-
-      const res = await fetch("/api/admin/leads");
-      const data: ApiResponse = await res.json();
-
-      if (!res.ok || !data.ok) {
-        setError(data.error || "Kunde inte hämta leads.");
-        setLeads([]);
-        setLoading(false);
-        return;
-      }
-
-      setLeads(data.leads || []);
-      setLoading(false);
-    } catch (err: any) {
-      console.error(err);
+      data = JSON.parse(text);
+    } catch {
+      console.error("Admin API svarade inte med JSON:", text);
       setError(
-        "Fel vid hämtning av leads: " + (err?.message || "okänt fel")
+        "Servern svarade inte med JSON. Första raden: " +
+          text.slice(0, 80)
       );
+      setLeads([]);
       setLoading(false);
+      return;
     }
-  };
+
+    if (!res.ok || !data.ok) {
+      setError(data.error || "Kunde inte hämta leads.");
+      setLeads([]);
+      setLoading(false);
+      return;
+    }
+
+    setLeads(data.leads || []);
+    setLoading(false);
+  } catch (err: any) {
+    console.error(err);
+    setError(
+      "Fel vid hämtning av leads: " + (err?.message || "okänt fel")
+    );
+    setLoading(false);
+  }
+};
+
 
   useEffect(() => {
     fetchLeads();
