@@ -220,7 +220,7 @@ export default function Home() {
           ? `${message}\n\n---\n${machineInfo}`
           : machineInfo || "";
 
-      const { error: leadError } = await supabase.from("leads").insert({
+         const { error: leadError } = await supabase.from("leads").insert({
         name,
         email,
         phone: phone || null,
@@ -230,7 +230,9 @@ export default function Home() {
 
       if (leadError) {
         console.error("Lead insert error:", leadError);
-        setLeadError("Kunde inte spara förfrågan. Försök igen.");
+        setLeadError(
+          "Supabase-fel: " + (leadError.message || "okänt fel vid insert.")
+        );
         setLeadSubmitting(false);
         return;
       }
