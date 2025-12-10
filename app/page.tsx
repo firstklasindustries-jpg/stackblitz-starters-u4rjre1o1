@@ -52,11 +52,6 @@ export default function Home() {
   const [loadingMachines, setLoadingMachines] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-    // Lead/form-status (värderingsförfrågan längst ner)
-  const [leadSubmitting, setLeadSubmitting] = useState(false);
-  const [leadSent, setLeadSent] = useState(false);
-  const [leadError, setLeadError] = useState<string | null>(null);
-
   // formulär för ny maskin
   const [name, setName] = useState("");
   const [model, setModel] = useState("");
@@ -83,7 +78,7 @@ export default function Home() {
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
 
-  // AI-förslag (ej visat än, men sparat)
+  // AI-förslag (vision)
   const [aiSuggestion, setAiSuggestion] = useState<{
     model: string;
     serial: string;
@@ -115,6 +110,11 @@ export default function Home() {
   const [uploadingNewMachineImage, setUploadingNewMachineImage] =
     useState(false);
   const [loadingNewMachineAi, setLoadingNewMachineAi] = useState(false);
+
+  // Lead/form-status (värderingsförfrågan längst ner)
+  const [leadSubmitting, setLeadSubmitting] = useState(false);
+  const [leadSent, setLeadSent] = useState(false);
+  const [leadError, setLeadError] = useState<string | null>(null);
 
   // hämta alla maskiner
   const fetchMachines = async () => {
@@ -171,79 +171,6 @@ export default function Home() {
   const handleAddMachine = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
- 
-// Hantera inskick av värderingsförfrågan (längst ner på sidan)
-  const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLeadSubmitting(true);
-    setLeadSent(false);
-    setLeadError(null);
-
-    try {
-      const formData = new FormData(e.currentTarget);
-
-      const name = String(formData.get("name") || "");
-      const email = String(formData.get("email") || "");
-      const phone = String(formData.get("phone") || "");
-      const message = String(formData.get("message") || "");
-
-      const brand = String(formData.get("brand") || "");
-      const model = String(formData.get("model") || "");
-      const year = formData.get("year")
-        ? Number(formData.get("year"))
-        : null;
-      const hours = formData.get("operating_hours")
-        ? Number(formData.get("operating_hours"))
-        : null;
-      const locationText = String(formData.get("location_text") || "");
-      const valueEstimate = formData.get("value_estimate")
-        ? Number(formData.get("value_estimate"))
-        : null;
-      const conditionScore = formData.get("condition_score")
-        ? Number(formData.get("condition_score"))
-        : null;
-
-      const payload = {
-        name,
-        email,
-        phone,
-        message,
-        brand,
-        model,
-        year,
-        hours,
-        locationText,
-        valueEstimate,
-        conditionScore,
-      };
-
-      const res = await fetch("/api/lead", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      // Vi loggar men visar ändå success i UI om servern svarar alls
-      if (!res.ok) {
-        const text = await res.text();
-        console.warn("Lead-API svarade inte OK:", res.status, text);
-      }
-
-      // ✅ UI: behandla detta som success
-      setLeadSent(true);
-      setLeadError(null);
-      e.currentTarget.reset();
-    } catch (err: any) {
-      console.error("Client-fel i handleLeadSubmit:", err);
-      setLeadError(
-        "Kunde inte kontakta servern. Försök igen senare."
-      );
-    } finally {
-      setLeadSubmitting(false);
-    }
-  };
-
-
 
     if (!name || !model || !serialNumber) {
       setError("Fyll i alla maskin-fält.");
@@ -271,6 +198,7 @@ export default function Home() {
       setSerialNumber("");
       setYear("");
       setHours("");
+      setNewMachineImageUrl(null);
       await fetchMachines();
     }
 
@@ -461,7 +389,7 @@ export default function Home() {
     setUploadingImage(false);
   };
 
-  // AI-autofyll för befintlig maskin
+  // AI-autofyll för befintlig maskin (vision-backend)
   const handleAiDemo = async () => {
     if (!selectedMachine || !selectedMachine.image_url) {
       setError("Välj en maskin och ladda upp en bild innan AI-autofyll.");
@@ -488,7 +416,7 @@ export default function Home() {
       } catch {
         console.error("AI-backend gav inte JSON:", text);
         setError(
-          "AI-backend gav inte JSON (troligen 404/feilsida). Första raden: " +
+          "AI-backend gav inte JSON (troligen feilsida). Första raden: " +
             text.slice(0, 80)
         );
         return;
@@ -510,7 +438,7 @@ export default function Home() {
     }
   };
 
-  // Ladda upp bild för NY maskin (innan den finns i databasen)
+  // Ladda upp bild för ny maskin (AI-first)
   const handleNewMachineImageChange = async (
     e: ChangeEvent<HTMLInputElement>
   ) => {
@@ -609,7 +537,7 @@ export default function Home() {
     }
   };
 
-    // Hantera inskick av värderingsförfrågan (längst ner på sidan)
+  // Hantera inskick av värderingsförfrågan (längst ner på sidan)
   const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLeadSubmitting(true);
@@ -640,43 +568,35 @@ export default function Home() {
         ? Number(formData.get("condition_score"))
         : null;
 
-      const machineInfo = [
-        brand && `Brand: ${brand}`,
-        model && `Model: ${model}`,
-        year && `Årsmodell: ${year}`,
-        typeof hours === "number" && `Timmar: ${hours}`,
-        locationText && `Plats: ${locationText}`,
-        valueEstimate && `Uppskattat värde: ${valueEstimate} NOK`,
-        conditionScore && `Skick (1–5): ${conditionScore}`,
-      ]
-        .filter(Boolean)
-        .join(" | ");
-
-      const fullMessage =
-        message.trim().length > 0
-          ? `${message}\n\n---\n${machineInfo}`
-          : machineInfo || "";
-
-      const { error: leadError } = await supabase.from("leads").insert({
+      const payload = {
         name,
         email,
-        phone: phone || null,
-        message: fullMessage || null,
-        source: "valuation_form",
+        phone,
+        message,
+        brand,
+        model,
+        year,
+        hours,
+        locationText,
+        valueEstimate,
+        conditionScore,
+      };
+
+      const res = await fetch("/api/lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
-      if (leadError) {
-        console.error("Lead insert error:", leadError);
-        setLeadError("Kunde inte spara förfrågan. Försök igen.");
-        setLeadSubmitting(false);
-        return;
+      if (!res.ok) {
+        const text = await res.text();
+        console.warn("Lead-API svarade inte OK:", res.status, text);
       }
 
-      // Success
-      setLeadSubmitting(false);
       setLeadSent(true);
+      setLeadError(null);
       e.currentTarget.reset();
-       } catch (err: any) {
+    } catch (err: any) {
       console.error("Client-fel i handleLeadSubmit:", err);
       setLeadError(
         "Kunde inte kontakta servern. Försök igen senare."
@@ -684,7 +604,7 @@ export default function Home() {
     } finally {
       setLeadSubmitting(false);
     }
-
+  };
 
   const isOwnerView = viewMode === "owner";
 
@@ -694,64 +614,17 @@ export default function Home() {
       ? selectedMachine.serial_number || "-"
       : maskSerial(selectedMachine.serial_number));
 
-
   return (
-    
-  <main className="min-h-screen flex flex-col items-center p-6 gap-8 bg-slate-50">
-    {/* HERO */}
-    <section className="w-full max-w-5xl">
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 text-white px-6 py-8 md:px-10 md:py-10 shadow-lg">
-        <div className="max-w-xl space-y-4">
-          <p className="text-xs uppercase tracking-[0.25em] text-slate-300">
-            Arctic Trace · MVP
-          </p>
-          <h1 className="text-3xl md:text-4xl font-bold leading-tight">
-            Digitalt maskinpass<br />för dina hjullastare
-          </h1>
-          <p className="text-sm md:text-base text-slate-200">
-            Samla historik, bilder och skick i ett digitalt pass. 
-            Få AI-värdering och skicka förfrågan på under 1 minut.
-          </p>
+    <main className="min-h-screen flex flex-col items-center p-6 gap-8 bg-slate-50">
+      <h1 className="text-3xl font-bold">Arctic Trace – MVP</h1>
+      <p className="text-sm text-gray-600 mb-2 text-center">
+        Maskiner, historik, bilder, hash-kedja &amp; AI-autofyll – med ägarvy
+        och publik vy.
+      </p>
 
-          <ul className="text-xs md:text-sm space-y-1 text-slate-100">
-            <li>✅ Digitalt maskinpass per maskin</li>
-            <li>✅ AI-bedömning av skick &amp; marknadsvärde</li>
-            <li>✅ Kedjad historik som avslöjar fusk</li>
-            <li>✅ Byggd för framtida EU-krav (DPP-ready)</li>
-          </ul>
+      {error && <p className="text-red-500 text-sm">{error}</p>}
 
-          <div className="flex flex-wrap gap-3 pt-3">
-            <a
-              href="#machines"
-              className="inline-flex items-center justify-center rounded-full bg-white text-slate-900 text-sm font-semibold px-4 py-2 shadow-sm hover:bg-slate-100 transition"
-            >
-              Lägg in din första maskin
-            </a>
-            <a
-              href="#valuation-form"
-              className="inline-flex items-center justify-center rounded-full border border-slate-300 text-slate-50 text-sm font-semibold px-4 py-2 hover:bg-slate-800/50 transition"
-            >
-              Skicka värderingsförfrågan
-            </a>
-          </div>
-        </div>
-
-        {/* Dekorativ “tag” i hörnet */}
-        <div className="hidden md:block absolute right-6 top-6 text-right text-xs text-slate-300">
-          <p className="font-semibold">AI &amp; hashad historik</p>
-          <p>Byggd för tunga maskiner</p>
-        </div>
-      </div>
-    </section>
-
-    {/* FELMEDDELANDE */}
-    {error && <p className="text-red-500 text-sm">{error}</p>}
-
-      <section
-  id="machines"
-  className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6"
->
-
+      <section className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Vänster sida: maskinregister */}
         <div className="bg-white shadow-md rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-3">Lägg till maskin</h2>
@@ -795,7 +668,9 @@ export default function Home() {
             onSubmit={handleAddMachine}
             className="flex flex-col gap-3 mb-6"
           >
-            <p className="text-sm font-semibold">2. Kontrollera & komplettera</p>
+            <p className="text-sm font-semibold">
+              2. Kontrollera &amp; komplettera
+            </p>
 
             <input
               type="text"
@@ -914,7 +789,7 @@ export default function Home() {
                 Modell: {selectedMachine.model || "-"} • Serienr: {shownSerial}
               </p>
 
-              {/* Värderings-knapp + AI-skick – endast i ägarvy */}
+              {/* Värdering + AI-skick (bara i ägarvy) */}
               {isOwnerView && (
                 <div className="mb-4 space-y-2">
                   {/* Värderingsknapp */}
@@ -1102,9 +977,34 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Händelser */}
+              {/* Lägg till händelse */}
               <div className="mb-6">
-                <h3 className="font-semibold mb-2">Lägg till händelse</h3>
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="font-semibold mb-0">
+                    Lägg till händelse
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={handleAiDemo}
+                    className="text-[11px] px-2 py-1 rounded bg-purple-100 text-purple-800"
+                  >
+                    🔍 AI-läs av bild (demo)
+                  </button>
+                </div>
+
+                {aiSuggestion && (
+                  <p className="text-[11px] text-gray-600 mb-2">
+                    AI-förslag: Modell:{" "}
+                    <span className="font-semibold">
+                      {aiSuggestion.model || "-"}
+                    </span>{" "}
+                    • Serienr:{" "}
+                    <span className="font-semibold">
+                      {aiSuggestion.serial || "-"}
+                    </span>
+                  </p>
+                )}
+
                 <form
                   onSubmit={handleAddEvent}
                   className="flex flex-col gap-3"
@@ -1138,6 +1038,7 @@ export default function Home() {
                 </form>
               </div>
 
+              {/* Historik */}
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <h3 className="font-semibold">Historik (kedjad)</h3>
@@ -1185,7 +1086,9 @@ export default function Home() {
                           {ev.description}
                         </span>
                         <span className="text-gray-400 text-xs mt-1">
-                          {new Date(ev.created_at).toLocaleString()}
+                          {new Date(
+                            ev.created_at
+                          ).toLocaleString()}
                         </span>
                         {ev.hash && (
                           <span className="text-[10px] text-gray-500 break-all mt-1">
@@ -1207,29 +1110,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Extra sektion: Skicka värderingsförfrågan (form mot API-route) */}
-     <section
-  id="valuation-form"
-  className="w-full max-w-xl bg-white shadow-md rounded-xl p-6"
->
-
+      {/* Värderingsförfrågan – lead-formulär */}
+      <section
+        id="valuation-form"
+        className="w-full max-w-xl bg-white shadow-md rounded-xl p-6"
+      >
         <h2 className="text-xl font-semibold mb-4">
           Skicka värderingsförfrågan
         </h2>
 
-               {leadError && (
-          <p className="text-xs text-red-500">{leadError}</p>
-        )}
-        {leadSent && !leadError && (
-          <p className="text-xs text-emerald-600">
-            Tack! Din förfrågan är mottagen – vi hör av oss.
-          </p>
-        )}
-
-
-       <form onSubmit={handleLeadSubmit} className="space-y-4">
-
-
+        <form onSubmit={handleLeadSubmit} className="space-y-4">
           {/* Maskindata */}
           <div>
             <label className="block text-sm font-medium">Brand</label>
@@ -1241,7 +1131,9 @@ export default function Home() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium">Model</label>
+            <label className="block text-sm font-medium">
+              Model
+            </label>
             <input
               name="model"
               className="border px-2 py-1 w-full"
@@ -1250,7 +1142,9 @@ export default function Home() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium">Årsmodell</label>
+            <label className="block text-sm font-medium">
+              Årsmodell
+            </label>
             <input
               type="number"
               name="year"
@@ -1260,7 +1154,9 @@ export default function Home() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium">Timmar</label>
+            <label className="block text-sm font-medium">
+              Timmar
+            </label>
             <input
               type="number"
               name="operating_hours"
@@ -1270,7 +1166,9 @@ export default function Home() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium">Plats</label>
+            <label className="block text-sm font-medium">
+              Plats
+            </label>
             <input
               name="location_text"
               className="border px-2 py-1 w-full"
@@ -1317,7 +1215,9 @@ export default function Home() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium">E-post</label>
+            <label className="block text-sm font-medium">
+              E-post
+            </label>
             <input
               type="email"
               name="email"
@@ -1328,7 +1228,9 @@ export default function Home() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium">Telefon</label>
+            <label className="block text-sm font-medium">
+              Telefon
+            </label>
             <input
               name="phone"
               className="border px-2 py-1 w-full"
@@ -1337,7 +1239,9 @@ export default function Home() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium">Meddelande</label>
+            <label className="block text-sm font-medium">
+              Meddelande
+            </label>
             <textarea
               name="message"
               className="border px-2 py-1 w-full"
@@ -1345,26 +1249,26 @@ export default function Home() {
             />
           </div>
 
-              <button
-          type="submit"
-          className="px-4 py-2 rounded bg-black text-white disabled:opacity-60"
-          disabled={leadSubmitting}
-        >
-          {leadSubmitting ? "Skickar..." : "Skicka förfrågan"}
-        </button>
+          <button
+            type="submit"
+            className="px-4 py-2 rounded bg-black text-white disabled:opacity-60"
+            disabled={leadSubmitting}
+          >
+            {leadSubmitting ? "Skickar..." : "Skicka förfrågan"}
+          </button>
 
-        {leadError && (
-          <p className="text-xs text-red-500 mt-1">{leadError}</p>
-        )}
-        {leadSent && !leadError && (
-          <p className="text-xs text-emerald-600 mt-1">
-            Tack! Din förfrågan är mottagen – vi hör av oss.
-          </p>
-        )}
-
+          {leadError && (
+            <p className="text-xs text-red-500 mt-1">{leadError}</p>
+          )}
+          {leadSent && !leadError && (
+            <p className="text-xs text-emerald-600 mt-1">
+              Tack! Din förfrågan är mottagen – vi hör av oss.
+            </p>
+          )}
         </form>
       </section>
     </main>
   );
 }
+
 
