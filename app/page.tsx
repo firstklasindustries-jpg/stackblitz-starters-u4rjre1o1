@@ -172,7 +172,7 @@ export default function Home() {
     e.preventDefault();
     setError(null);
 
-  // Hantera inskick av värderingsförfrågan (längst ner på sidan)
+   // Hantera inskick av värderingsförfrågan (längst ner på sidan)
   const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLeadSubmitting(true);
@@ -228,24 +228,29 @@ export default function Home() {
         source: "valuation_form",
       });
 
-      // 👉 Logga ev. Supabase-fel, men behandla ändå som success
       if (leadError) {
-        console.warn("Lead insert error (men vi ser att rader skapas):", leadError);
+        console.error("Lead insert error:", leadError);
+        setLeadError(
+          "Supabase-fel: " + (leadError.message || "okänt fel vid insert.")
+        );
+        setLeadSubmitting(false);
+        return;
       }
 
-      // Success i UI:et
+      // Success
       setLeadSubmitting(false);
       setLeadSent(true);
       setLeadError(null);
       e.currentTarget.reset();
     } catch (err: any) {
-      console.error("Ovnt fel i handleLeadSubmit:", err);
+      console.error("Oväntat fel i handleLeadSubmit:", err);
       setLeadError(
-        "Något gick fel vid inskick. Försök igen eller kontakta Klas direkt."
+        "Client-fel: " + (err?.message || "okänt fel i inskick.")
       );
       setLeadSubmitting(false);
     }
   };
+
 
 
     if (!name || !model || !serialNumber) {
