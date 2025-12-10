@@ -172,6 +172,83 @@ export default function Home() {
     e.preventDefault();
     setError(null);
 
+      // Hantera inskick av värderingsförfrågan (längst ner på sidan)
+  const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLeadSubmitting(true);
+    setLeadSent(false);
+    setLeadError(null);
+
+    try {
+      const formData = new FormData(e.currentTarget);
+
+      const name = String(formData.get("name") || "");
+      const email = String(formData.get("email") || "");
+      const phone = String(formData.get("phone") || "");
+      const message = String(formData.get("message") || "");
+
+      const brand = String(formData.get("brand") || "");
+      const model = String(formData.get("model") || "");
+      const year = formData.get("year")
+        ? Number(formData.get("year"))
+        : null;
+      const hours = formData.get("operating_hours")
+        ? Number(formData.get("operating_hours"))
+        : null;
+      const locationText = String(formData.get("location_text") || "");
+      const valueEstimate = formData.get("value_estimate")
+        ? Number(formData.get("value_estimate"))
+        : null;
+      const conditionScore = formData.get("condition_score")
+        ? Number(formData.get("condition_score"))
+        : null;
+
+      const machineInfo = [
+        brand && `Brand: ${brand}`,
+        model && `Model: ${model}`,
+        year && `Årsmodell: ${year}`,
+        typeof hours === "number" && `Timmar: ${hours}`,
+        locationText && `Plats: ${locationText}`,
+        valueEstimate && `Uppskattat värde: ${valueEstimate} NOK`,
+        conditionScore && `Skick (1–5): ${conditionScore}`,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+
+      const fullMessage =
+        message.trim().length > 0
+          ? `${message}\n\n---\n${machineInfo}`
+          : machineInfo || "";
+
+      const { error: leadError } = await supabase.from("leads").insert({
+        name,
+        email,
+        phone: phone || null,
+        message: fullMessage || null,
+        source: "valuation_form",
+      });
+
+      if (leadError) {
+        console.error("Lead insert error:", leadError);
+        setLeadError("Kunde inte spara förfrågan. Försök igen.");
+        setLeadSubmitting(false);
+        return;
+      }
+
+      // Success
+      setLeadSubmitting(false);
+      setLeadSent(true);
+      e.currentTarget.reset();
+    } catch (err: any) {
+      console.error(err);
+      setLeadError(
+        "Något gick fel vid inskick. Försök igen eller kontakta Klas direkt."
+      );
+      setLeadSubmitting(false);
+    }
+  };
+
+
     if (!name || !model || !serialNumber) {
       setError("Fyll i alla maskin-fält.");
       return;
