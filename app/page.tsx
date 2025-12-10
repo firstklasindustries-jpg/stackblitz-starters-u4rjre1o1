@@ -698,14 +698,6 @@ export default function Home() {
       : maskSerial(selectedMachine.serial_number));
 
 
-  const isOwnerView = viewMode === "owner";
-
-  const shownSerial =
-    selectedMachine &&
-    (isOwnerView
-      ? selectedMachine.serial_number || "-"
-      : maskSerial(selectedMachine.serial_number));
-
   return (
     
   <main className="min-h-screen flex flex-col items-center p-6 gap-8 bg-slate-50">
