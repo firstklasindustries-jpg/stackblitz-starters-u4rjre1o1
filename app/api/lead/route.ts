@@ -4,50 +4,54 @@ import { supabase } from "../../../lib/supabaseClient";
 
 export async function POST(req: Request) {
   try {
-    const formData = await req.formData();
+    const body = await req.json();
 
-    // Kontakt / lead
-    const name = String(formData.get("name") || "");
-    const email = String(formData.get("email") || "");
-    const phone = String(formData.get("phone") || "");
-    const message = String(formData.get("message") || "");
+    const name = String(body.name || "");
+    const email = String(body.email || "");
+    const phone = String(body.phone || "");
+    const message = String(body.message || "");
 
-    // Maskindata
-    const brand = String(formData.get("brand") || "");
-    const model = String(formData.get("model") || "");
-    const year = formData.get("year")
-      ? Number(formData.get("year"))
-      : null;
-    const hours = formData.get("operating_hours")
-      ? Number(formData.get("operating_hours"))
-      : null;
-    const locationText = String(formData.get("location_text") || "");
-    const valueEstimate = formData.get("value_estimate")
-      ? Number(formData.get("value_estimate"))
-      : null;
-    const conditionScore = formData.get("condition_score")
-      ? Number(formData.get("condition_score"))
-      : null;
+    const brand = String(body.brand || "");
+    const model = String(body.model || "");
+    const year =
+      typeof body.year === "number" && !Number.isNaN(body.year)
+        ? body.year
+        : null;
+    const hours =
+      typeof body.hours === "number" && !Number.isNaN(body.hours)
+        ? body.hours
+        : null;
+    const locationText = String(body.locationText || "");
+    const valueEstimate =
+      typeof body.valueEstimate === "number" &&
+      !Number.isNaN(body.valueEstimate)
+        ? body.valueEstimate
+        : null;
+    const conditionScore =
+      typeof body.conditionScore === "number" &&
+      !Number.isNaN(body.conditionScore)
+        ? body.conditionScore
+        : null;
 
-    // Bygg upp maskininfo som text i leadet
     const machineInfo = [
       brand && `Brand: ${brand}`,
       model && `Model: ${model}`,
       year && `Årsmodell: ${year}`,
       typeof hours === "number" && `Timmar: ${hours}`,
       locationText && `Plats: ${locationText}`,
-      valueEstimate && `Uppskattat värde: ${valueEstimate} NOK`,
-      conditionScore && `Skick (1–5): ${conditionScore}`,
+      typeof valueEstimate === "number" &&
+        `Uppskattat värde: ${valueEstimate} NOK`,
+      typeof conditionScore === "number" &&
+        `Skick (1–5): ${conditionScore}`,
     ]
       .filter(Boolean)
       .join(" | ");
 
     const fullMessage =
-      (message || "").trim().length > 0
+      message.trim().length > 0
         ? `${message}\n\n---\n${machineInfo}`
         : machineInfo || "";
 
-    // 1) Skapa lead i leads-tabellen
     const { error: leadError } = await supabase.from("leads").insert({
       name,
       email,
@@ -57,25 +61,32 @@ export async function POST(req: Request) {
     });
 
     if (leadError) {
-      console.error("Lead insert error:", leadError);
-      const url = new URL("/", req.url);
-      url.searchParams.set("lead_error", "1");
-      return NextResponse.redirect(url);
+      console.error("Lead insert error (server):", leadError);
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            leadError.message || "Kunde inte spara lead i databasen.",
+        },
+        { status: 500 }
+      );
     }
 
-    // 2) Allt ok → redirect tillbaka till startsidan med “sent=1”
-    const url = new URL("/", req.url);
-    url.searchParams.set("sent", "1");
-    return NextResponse.redirect(url);
+    return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error("Unexpected error in POST /api/lead:", err);
-    const url = new URL("/", req.url);
-    url.searchParams.set("server_error", "1");
-    return NextResponse.redirect(url);
+    console.error("Ovnt fel i POST /api/lead:", err);
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          err?.message ||
+          "Oväntat fel i servern vid lead-inskick.",
+      },
+      { status: 500 }
+    );
   }
 }
 
-// Om någon surfar GET direkt på /api/lead
 export async function GET() {
   return NextResponse.json(
     { ok: false, error: "Use POST" },
