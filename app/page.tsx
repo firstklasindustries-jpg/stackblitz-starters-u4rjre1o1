@@ -1347,13 +1347,22 @@ export default function Home() {
             />
           </div>
 
-                <button
+              <button
           type="submit"
           className="px-4 py-2 rounded bg-black text-white disabled:opacity-60"
           disabled={leadSubmitting}
         >
           {leadSubmitting ? "Skickar..." : "Skicka förfrågan"}
         </button>
+
+        {leadError && (
+          <p className="text-xs text-red-500 mt-1">{leadError}</p>
+        )}
+        {leadSent && !leadError && (
+          <p className="text-xs text-emerald-600 mt-1">
+            Tack! Din förfrågan är mottagen – vi hör av oss.
+          </p>
+        )}
 
         </form>
       </section>
