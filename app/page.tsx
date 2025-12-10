@@ -171,7 +171,6 @@ export default function Home() {
   const handleAddMachine = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-
   // Hantera inskick av värderingsförfrågan (längst ner på sidan)
   const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
