@@ -1143,11 +1143,18 @@ export default function Home() {
           Skicka värderingsförfrågan
         </h2>
 
-        <form
-    action="/api/lead"
-    method="POST"
-    className="space-y-4"
-  >
+               {leadError && (
+          <p className="text-xs text-red-500">{leadError}</p>
+        )}
+        {leadSent && !leadError && (
+          <p className="text-xs text-emerald-600">
+            Tack! Din förfrågan är mottagen – vi hör av oss.
+          </p>
+        )}
+
+
+       <form onSubmit={handleLeadSubmit} className="space-y-4">
+
 
           {/* Maskindata */}
           <div>
@@ -1264,12 +1271,14 @@ export default function Home() {
             />
           </div>
 
-          <button
-            type="submit"
-            className="px-4 py-2 rounded bg-black text-white"
-          >
-            Skicka förfrågan
-          </button>
+                <button
+          type="submit"
+          className="px-4 py-2 rounded bg-black text-white disabled:opacity-60"
+          disabled={leadSubmitting}
+        >
+          {leadSubmitting ? "Skickar..." : "Skicka förfrågan"}
+        </button>
+
         </form>
       </section>
     </main>
