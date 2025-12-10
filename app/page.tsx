@@ -536,7 +536,6 @@ export default function Home() {
       setLoadingNewMachineAi(false);
     }
   };
-
   // Hantera inskick av värderingsförfrågan (längst ner på sidan)
   const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -568,43 +567,56 @@ export default function Home() {
         ? Number(formData.get("condition_score"))
         : null;
 
-      const payload = {
+      const machineInfo = [
+        brand && `Brand: ${brand}`,
+        model && `Model: ${model}`,
+        year && `Årsmodell: ${year}`,
+        typeof hours === "number" && `Timmar: ${hours}`,
+        locationText && `Plats: ${locationText}`,
+        typeof valueEstimate === "number" &&
+          `Uppskattat värde: ${valueEstimate} NOK`,
+        typeof conditionScore === "number" &&
+          `Skick (1–5): ${conditionScore}`,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+
+      const fullMessage =
+        message.trim().length > 0
+          ? `${message}\n\n---\n${machineInfo}`
+          : machineInfo || "";
+
+      const { error: leadError } = await supabase.from("leads").insert({
         name,
         email,
-        phone,
-        message,
-        brand,
-        model,
-        year,
-        hours,
-        locationText,
-        valueEstimate,
-        conditionScore,
-      };
-
-      const res = await fetch("/api/lead", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        phone: phone || null,
+        message: fullMessage || null,
+        source: "valuation_form",
       });
 
-      if (!res.ok) {
-        const text = await res.text();
-        console.warn("Lead-API svarade inte OK:", res.status, text);
+      if (leadError) {
+        console.error("Lead insert error:", leadError);
+        setLeadError(
+          "Supabase-fel: " + (leadError.message || "okänt fel vid insert.")
+        );
+        setLeadSubmitting(false);
+        return;
       }
 
+      // ✅ Success
+      setLeadSubmitting(false);
       setLeadSent(true);
       setLeadError(null);
       e.currentTarget.reset();
     } catch (err: any) {
-      console.error("Client-fel i handleLeadSubmit:", err);
+      console.error("Oväntat client-fel i handleLeadSubmit:", err);
       setLeadError(
-        "Kunde inte kontakta servern. Försök igen senare."
+        "Client-fel: " + (err?.message || "okänt fel i inskick.")
       );
-    } finally {
       setLeadSubmitting(false);
     }
   };
+
 
   const isOwnerView = viewMode === "owner";
 
