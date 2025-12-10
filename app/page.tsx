@@ -676,14 +676,15 @@ export default function Home() {
       setLeadSubmitting(false);
       setLeadSent(true);
       e.currentTarget.reset();
-    } catch (err: any) {
-      console.error(err);
+       } catch (err: any) {
+      console.error("Client-fel i handleLeadSubmit:", err);
       setLeadError(
-    
+        "Kunde inte kontakta servern. Försök igen senare."
       );
+    } finally {
       setLeadSubmitting(false);
     }
-  };
+
 
   const isOwnerView = viewMode === "owner";
 
