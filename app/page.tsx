@@ -52,6 +52,11 @@ export default function Home() {
   const [loadingMachines, setLoadingMachines] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+    // Lead/form-status (värderingsförfrågan längst ner)
+  const [leadSubmitting, setLeadSubmitting] = useState(false);
+  const [leadSent, setLeadSent] = useState(false);
+  const [leadError, setLeadError] = useState<string | null>(null);
+
   // formulär för ny maskin
   const [name, setName] = useState("");
   const [model, setModel] = useState("");
