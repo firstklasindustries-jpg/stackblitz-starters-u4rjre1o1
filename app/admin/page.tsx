@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { supabase } from "../../lib/supabaseClient";
 
 type Lead = {
   id: string;
@@ -22,17 +23,22 @@ export default function AdminPage() {
       setLoading(true);
       setError(null);
 
-      const res = await fetch("/api/admin/leads");
-      const data = await res.json();
+      const { data, error } = await supabase
+        .from("leads")
+        .select("id, name, email, phone, message, source, created_at")
+        .order("created_at", { ascending: false });
 
-      if (!res.ok || !data.ok) {
-        console.error("Lead-API fel:", data);
-        setError(data.error || "Kunde inte hämta leads.");
+      if (error) {
+        console.error("Supabase admin-fetch error:", error);
+        setError(
+          "Kunde inte hämta leads: " +
+            (error.message || "okänt fel")
+        );
         setLeads([]);
         return;
       }
 
-      setLeads((data.leads || []) as Lead[]);
+      setLeads((data || []) as Lead[]);
     } catch (err: any) {
       console.error("Client-fel i admin-fetch:", err);
       setError(
@@ -67,9 +73,7 @@ export default function AdminPage() {
         </header>
 
         {error && (
-          <p className="text-sm text-red-500">
-            {error}
-          </p>
+          <p className="text-sm text-red-500">{error}</p>
         )}
 
         {loading ? (
