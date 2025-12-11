@@ -1,10 +1,10 @@
 // app/api/admin/leads/route.ts
 import { NextResponse } from "next/server";
-import { supabase } from "../../../../lib/supabaseClient";
+import { supabaseAdmin } from "../../../../lib/supabaseAdmin";
 
 export async function GET() {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("leads")
       .select("id, name, email, phone, message, source, created_at")
       .order("created_at", { ascending: false });
@@ -30,4 +30,3 @@ export async function GET() {
     );
   }
 }
-
