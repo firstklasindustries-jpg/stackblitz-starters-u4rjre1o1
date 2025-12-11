@@ -536,6 +536,7 @@ export default function Home() {
       setLoadingNewMachineAi(false);
     }
   };
+
 const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
   e.preventDefault();
   setLeadSubmitting(true);
@@ -568,59 +569,53 @@ const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
       ? Number(formData.get("condition_score"))
       : null;
 
-    const payload = {
-      name,
-      email,
-      phone,
-      message,
-      brand,
-      model,
-      year,
-      hours,
-      locationText,
-      valueEstimate,
-      conditionScore,
-    };
+    const machineInfo = [
+      brand && `Brand: ${brand}`,
+      model && `Model: ${model}`,
+      year && `Årsmodell: ${year}`,
+      typeof hours === "number" && `Timmar: ${hours}`,
+      locationText && `Plats: ${locationText}`,
+      typeof valueEstimate === "number" &&
+        `Uppskattat värde: ${valueEstimate} NOK`,
+      typeof conditionScore === "number" &&
+        `Skick (1–5): ${conditionScore}`,
+    ]
+      .filter(Boolean)
+      .join(" | ");
 
-    console.log("Skickar lead-payload:", payload);
+    const fullMessage =
+      message.trim().length > 0
+        ? `${message}\n\n---\n${machineInfo}`
+        : machineInfo || "";
 
-    const res = await fetch("/api/lead", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const { data, error } = await supabase
+      .from("leads")
+      .insert({
+        name,
+        email,
+        phone: phone || null,
+        message: fullMessage || null,
+        source: "valuation_form",
+      })
+      .select("id, created_at")
+      .maybeSingle();
 
-    const text = await res.text();
-    console.log("Rått svar från /api/lead:", text);
-
-    let data: { ok: boolean; error?: string } = { ok: false };
-
-    try {
-      data = JSON.parse(text);
-    } catch {
+    if (error) {
+      console.error("Lead insert error:", error);
       setLeadError(
-        "Servern svarade inte med JSON. Första raden: " +
-          text.slice(0, 120)
+        "Supabase-fel: " + (error.message || "okänt fel vid insert.")
       );
       setLeadSubmitting(false);
       return;
     }
 
-    if (!res.ok || !data.ok) {
-      setLeadError(
-        "Lead-API fel: " +
-          (data.error || `status ${res.status}`)
-      );
-      setLeadSubmitting(false);
-      return;
-    }
+    console.log("Lead sparad:", data);
 
-    // ✅ Success
     setLeadSent(true);
     setLeadError(null);
     form.reset();
   } catch (err: any) {
-    console.error("Client-fel i handleLeadSubmit:", err);
+    console.error("Oväntat client-fel i handleLeadSubmit:", err);
     setLeadError(
       "Client-fel: " + (err?.message || "okänt fel i inskick.")
     );
