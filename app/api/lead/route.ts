@@ -1,6 +1,6 @@
 // app/api/lead/route.ts
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "../../../lib/supabaseAdmin";
+import { supabase } from "../../../lib/supabaseClient";
 
 export async function POST(req: Request) {
   try {
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
         ? `${message}\n\n---\n${machineInfo}`
         : machineInfo || "";
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("leads")
       .insert({
         name,
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
         source: "valuation_form",
       })
       .select("id, created_at, source")
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Lead insert error (server):", error);
