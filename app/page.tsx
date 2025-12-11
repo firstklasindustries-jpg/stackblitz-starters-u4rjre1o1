@@ -613,6 +613,22 @@ const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
 
     setLeadSent(true);
     setLeadError(null);
+    // efter att insert lyckats (innan form.reset()):
+try {
+  await fetch("/api/notify-new-lead", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name,
+      email,
+      phone,
+      machineInfo,
+    }),
+  });
+} catch (notifyErr) {
+  console.warn("Kunde inte skicka notifiering:", notifyErr);
+}
+
     form.reset();
   } catch (err: any) {
     console.error("Oväntat client-fel i handleLeadSubmit:", err);
