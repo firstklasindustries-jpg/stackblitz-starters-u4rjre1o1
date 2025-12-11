@@ -650,16 +650,18 @@ try {
     (isOwnerView
       ? selectedMachine.serial_number || "-"
       : maskSerial(selectedMachine.serial_number));
+return (
+  <main className="min-h-screen flex flex-col items-center p-6 gap-8 bg-slate-50">
+    <h1 className="text-3xl font-bold text-center">
+      Få koll på din maskins värde &amp; historik – på ett ställe
+    </h1>
+    <p className="text-sm text-gray-600 mb-2 text-center max-w-xl">
+      Arctic Trace samlar maskindata, servicehistorik, bilder,
+      hash-kedjad historik och AI-värdering. Perfekt när du ska sälja,
+      köpa eller bara ha kontroll.
+    </p>
 
-  return (
-    <main className="min-h-screen flex flex-col items-center p-6 gap-8 bg-slate-50">
-      <h1 className="text-3xl font-bold">Arctic Trace – MVP</h1>
-      <p className="text-sm text-gray-600 mb-2 text-center">
-        Maskiner, historik, bilder, hash-kedja &amp; AI-autofyll – med ägarvy
-        och publik vy.
-      </p>
-
-      {error && <p className="text-red-500 text-sm">{error}</p>}
+    {error && <p className="text-red-500 text-sm">{error}</p>}
 
       <section className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Vänster sida: maskinregister */}
