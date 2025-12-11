@@ -69,15 +69,19 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: error.message || "Kunde inte spara lead i databasen.",
+          error:
+            error.message ||
+            "Kunde inte spara lead i databasen.",
         },
         { status: 500 }
       );
     }
 
+    console.log("Lead sparad (server):", data);
+
     return NextResponse.json({ ok: true, lead: data });
   } catch (err: any) {
-    console.error("Ovnt fel i POST /api/lead:", err);
+    console.error("Oväntat fel i POST /api/lead:", err);
     return NextResponse.json(
       {
         ok: false,
