@@ -582,6 +582,8 @@ const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
       conditionScore,
     };
 
+    console.log("Skickar lead-payload:", payload);
+
     const res = await fetch("/api/lead", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -589,24 +591,25 @@ const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
     });
 
     const text = await res.text();
+    console.log("Rått svar från /api/lead:", text);
+
     let data: { ok: boolean; error?: string } = { ok: false };
 
     try {
       data = JSON.parse(text);
     } catch {
-      console.error("API /api/lead gav inte JSON:", text);
       setLeadError(
         "Servern svarade inte med JSON. Första raden: " +
-          text.slice(0, 80)
+          text.slice(0, 120)
       );
       setLeadSubmitting(false);
       return;
     }
 
     if (!res.ok || !data.ok) {
-      console.error("Lead-API fel:", data);
       setLeadError(
-        data.error || "Kunde inte spara förfrågan. Försök igen."
+        "Lead-API fel: " +
+          (data.error || `status ${res.status}`)
       );
       setLeadSubmitting(false);
       return;
