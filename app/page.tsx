@@ -536,13 +536,12 @@ export default function Home() {
       setLoadingNewMachineAi(false);
     }
   };
- const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
+const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
   e.preventDefault();
   setLeadSubmitting(true);
   setLeadSent(false);
   setLeadError(null);
 
-  // 👇 Spara form-referens innan första await
   const form = e.currentTarget;
 
   try {
@@ -569,37 +568,45 @@ export default function Home() {
       ? Number(formData.get("condition_score"))
       : null;
 
-    const machineInfo = [
-      brand && `Brand: ${brand}`,
-      model && `Model: ${model}`,
-      year && `Årsmodell: ${year}`,
-      typeof hours === "number" && `Timmar: ${hours}`,
-      locationText && `Plats: ${locationText}`,
-      typeof valueEstimate === "number" &&
-        `Uppskattat värde: ${valueEstimate} NOK`,
-      typeof conditionScore === "number" &&
-        `Skick (1–5): ${conditionScore}`,
-    ]
-      .filter(Boolean)
-      .join(" | ");
-
-    const fullMessage =
-      message.trim().length > 0
-        ? `${message}\n\n---\n${machineInfo}`
-        : machineInfo || "";
-
-    const { error: leadError } = await supabase.from("leads").insert({
+    const payload = {
       name,
       email,
-      phone: phone || null,
-      message: fullMessage || null,
-      source: "valuation_form",
+      phone,
+      message,
+      brand,
+      model,
+      year,
+      hours,
+      locationText,
+      valueEstimate,
+      conditionScore,
+    };
+
+    const res = await fetch("/api/lead", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
 
-    if (leadError) {
-      console.error("Lead insert error:", leadError);
+    const text = await res.text();
+    let data: { ok: boolean; error?: string } = { ok: false };
+
+    try {
+      data = JSON.parse(text);
+    } catch {
+      console.error("API /api/lead gav inte JSON:", text);
       setLeadError(
-        "Supabase-fel: " + (leadError.message || "okänt fel vid insert.")
+        "Servern svarade inte med JSON. Första raden: " +
+          text.slice(0, 80)
+      );
+      setLeadSubmitting(false);
+      return;
+    }
+
+    if (!res.ok || !data.ok) {
+      console.error("Lead-API fel:", data);
+      setLeadError(
+        data.error || "Kunde inte spara förfrågan. Försök igen."
       );
       setLeadSubmitting(false);
       return;
@@ -608,9 +615,9 @@ export default function Home() {
     // ✅ Success
     setLeadSent(true);
     setLeadError(null);
-    form.reset(); // 👈 använd form-referensen, inte e.currentTarget
+    form.reset();
   } catch (err: any) {
-    console.error("Oväntat client-fel i handleLeadSubmit:", err);
+    console.error("Client-fel i handleLeadSubmit:", err);
     setLeadError(
       "Client-fel: " + (err?.message || "okänt fel i inskick.")
     );
@@ -618,6 +625,7 @@ export default function Home() {
     setLeadSubmitting(false);
   }
 };
+
 
 
 
