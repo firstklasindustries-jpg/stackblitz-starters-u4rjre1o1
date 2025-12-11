@@ -6,30 +6,13 @@ export async function GET() {
   try {
     const { data, error } = await supabase
       .from("leads")
-      .select(
-        `
-        id,
-        name,
-        email,
-        phone,
-        message,
-        source,
-        created_at,
-        machines:machine_id (
-          id,
-          name,
-          model,
-          year,
-          hours
-        )
-      `
-      )
+      .select("id, name, email, phone, message, source, created_at")
       .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Supabase admin/leads error:", error);
       return NextResponse.json(
-        { ok: false, error: "Kunde inte hämta leads" },
+        { ok: false, error: error.message || "Kunde inte hämta leads." },
         { status: 500 }
       );
     }
@@ -38,7 +21,11 @@ export async function GET() {
   } catch (err: any) {
     console.error("Oväntat fel i admin/leads:", err);
     return NextResponse.json(
-      { ok: false, error: "Oväntat fel i admin/leads" },
+      {
+        ok: false,
+        error:
+          err?.message || "Oväntat fel i servern vid hämtning av leads.",
+      },
       { status: 500 }
     );
   }
