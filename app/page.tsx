@@ -536,86 +536,89 @@ export default function Home() {
       setLoadingNewMachineAi(false);
     }
   };
-  // Hantera inskick av värderingsförfrågan (längst ner på sidan)
-  const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLeadSubmitting(true);
-    setLeadSent(false);
-    setLeadError(null);
+ const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  setLeadSubmitting(true);
+  setLeadSent(false);
+  setLeadError(null);
 
-    try {
-      const formData = new FormData(e.currentTarget);
+  // 👇 Spara form-referens innan första await
+  const form = e.currentTarget;
 
-      const name = String(formData.get("name") || "");
-      const email = String(formData.get("email") || "");
-      const phone = String(formData.get("phone") || "");
-      const message = String(formData.get("message") || "");
+  try {
+    const formData = new FormData(form);
 
-      const brand = String(formData.get("brand") || "");
-      const model = String(formData.get("model") || "");
-      const year = formData.get("year")
-        ? Number(formData.get("year"))
-        : null;
-      const hours = formData.get("operating_hours")
-        ? Number(formData.get("operating_hours"))
-        : null;
-      const locationText = String(formData.get("location_text") || "");
-      const valueEstimate = formData.get("value_estimate")
-        ? Number(formData.get("value_estimate"))
-        : null;
-      const conditionScore = formData.get("condition_score")
-        ? Number(formData.get("condition_score"))
-        : null;
+    const name = String(formData.get("name") || "");
+    const email = String(formData.get("email") || "");
+    const phone = String(formData.get("phone") || "");
+    const message = String(formData.get("message") || "");
 
-      const machineInfo = [
-        brand && `Brand: ${brand}`,
-        model && `Model: ${model}`,
-        year && `Årsmodell: ${year}`,
-        typeof hours === "number" && `Timmar: ${hours}`,
-        locationText && `Plats: ${locationText}`,
-        typeof valueEstimate === "number" &&
-          `Uppskattat värde: ${valueEstimate} NOK`,
-        typeof conditionScore === "number" &&
-          `Skick (1–5): ${conditionScore}`,
-      ]
-        .filter(Boolean)
-        .join(" | ");
+    const brand = String(formData.get("brand") || "");
+    const model = String(formData.get("model") || "");
+    const year = formData.get("year")
+      ? Number(formData.get("year"))
+      : null;
+    const hours = formData.get("operating_hours")
+      ? Number(formData.get("operating_hours"))
+      : null;
+    const locationText = String(formData.get("location_text") || "");
+    const valueEstimate = formData.get("value_estimate")
+      ? Number(formData.get("value_estimate"))
+      : null;
+    const conditionScore = formData.get("condition_score")
+      ? Number(formData.get("condition_score"))
+      : null;
 
-      const fullMessage =
-        message.trim().length > 0
-          ? `${message}\n\n---\n${machineInfo}`
-          : machineInfo || "";
+    const machineInfo = [
+      brand && `Brand: ${brand}`,
+      model && `Model: ${model}`,
+      year && `Årsmodell: ${year}`,
+      typeof hours === "number" && `Timmar: ${hours}`,
+      locationText && `Plats: ${locationText}`,
+      typeof valueEstimate === "number" &&
+        `Uppskattat värde: ${valueEstimate} NOK`,
+      typeof conditionScore === "number" &&
+        `Skick (1–5): ${conditionScore}`,
+    ]
+      .filter(Boolean)
+      .join(" | ");
 
-      const { error: leadError } = await supabase.from("leads").insert({
-        name,
-        email,
-        phone: phone || null,
-        message: fullMessage || null,
-        source: "valuation_form",
-      });
+    const fullMessage =
+      message.trim().length > 0
+        ? `${message}\n\n---\n${machineInfo}`
+        : machineInfo || "";
 
-      if (leadError) {
-        console.error("Lead insert error:", leadError);
-        setLeadError(
-          "Supabase-fel: " + (leadError.message || "okänt fel vid insert.")
-        );
-        setLeadSubmitting(false);
-        return;
-      }
+    const { error: leadError } = await supabase.from("leads").insert({
+      name,
+      email,
+      phone: phone || null,
+      message: fullMessage || null,
+      source: "valuation_form",
+    });
 
-      // ✅ Success
-      setLeadSubmitting(false);
-      setLeadSent(true);
-      setLeadError(null);
-      e.currentTarget.reset();
-    } catch (err: any) {
-      console.error("Oväntat client-fel i handleLeadSubmit:", err);
+    if (leadError) {
+      console.error("Lead insert error:", leadError);
       setLeadError(
-        "Client-fel: " + (err?.message || "okänt fel i inskick.")
+        "Supabase-fel: " + (leadError.message || "okänt fel vid insert.")
       );
       setLeadSubmitting(false);
+      return;
     }
-  };
+
+    // ✅ Success
+    setLeadSent(true);
+    setLeadError(null);
+    form.reset(); // 👈 använd form-referensen, inte e.currentTarget
+  } catch (err: any) {
+    console.error("Oväntat client-fel i handleLeadSubmit:", err);
+    setLeadError(
+      "Client-fel: " + (err?.message || "okänt fel i inskick.")
+    );
+  } finally {
+    setLeadSubmitting(false);
+  }
+};
+
 
 
   const isOwnerView = viewMode === "owner";
