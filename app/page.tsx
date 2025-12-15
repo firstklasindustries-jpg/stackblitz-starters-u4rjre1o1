@@ -28,6 +28,19 @@ type MachineEvent = {
   hash: string | null;
 };
 
+type Condition = {
+  condition_score: number;
+  condition_label: string;
+  notes: string;
+  risk_flags: string[];
+};
+
+type Valuation = {
+  estimated_value: number;
+  confidence: number;
+  comment: string | null;
+};
+
 // Helper för SHA-256-hash (blockchain-liknande kedja)
 async function computeHash(input: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -48,62 +61,49 @@ function maskSerial(serial?: string | null): string {
 }
 
 export default function Home() {
+  // Maskin-state
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loadingMachines, setLoadingMachines] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // formulär för ny maskin
+  // Ny maskin-form
   const [name, setName] = useState("");
   const [model, setModel] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
-  const [savingMachine, setSavingMachine] = useState(false);
   const [year, setYear] = useState<string>("");
   const [hours, setHours] = useState<string>("");
+  const [savingMachine, setSavingMachine] = useState(false);
 
-  // valt maskinpass
+  // Vald maskin
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
   const [events, setEvents] = useState<MachineEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
 
-  // formulär för ny händelse
+  // Ny händelse
   const [eventType, setEventType] = useState("service");
   const [eventDescription, setEventDescription] = useState("");
   const [savingEvent, setSavingEvent] = useState(false);
 
-  // bilduppladdning
+  // Bilduppladdning för vald maskin
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  // verify-state
+  // Verifiering av hashkedja
   const [verifying, setVerifying] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
 
-  // AI-förslag (vision)
-  const [aiSuggestion, setAiSuggestion] = useState<{
-    model: string;
-    serial: string;
-  } | null>(null);
-
-  // vy-läge (ägarvy / publik vy)
+  // Vy-läge (ägare / publik)
   const [viewMode, setViewMode] = useState<"owner" | "public">("owner");
 
-  // värderings-state
-  const [valuation, setValuation] = useState<{
-    estimated_value: number;
-    confidence: number;
-    comment: string | null;
-  } | null>(null);
+  // AI-värdering
+  const [valuation, setValuation] = useState<Valuation | null>(null);
+  const [loadingValuation, setLoadingValuation] = useState(false);
 
-  const [condition, setCondition] = useState<{
-    condition_score: number;
-    condition_label: string;
-    notes: string;
-    risk_flags: string[];
-  } | null>(null);
-
+  // AI-skick
+  const [condition, setCondition] = useState<Condition | null>(null);
   const [loadingCondition, setLoadingCondition] = useState(false);
 
-  // AI-first för ny maskin
+  // AI-first: bild för ny maskin
   const [newMachineImageUrl, setNewMachineImageUrl] = useState<string | null>(
     null
   );
@@ -111,15 +111,16 @@ export default function Home() {
     useState(false);
   const [loadingNewMachineAi, setLoadingNewMachineAi] = useState(false);
 
-  // Lead/form-status (värderingsförfrågan längst ner)
+  // Lead-form
   const [leadSubmitting, setLeadSubmitting] = useState(false);
   const [leadSent, setLeadSent] = useState(false);
   const [leadError, setLeadError] = useState<string | null>(null);
 
-  // hämta alla maskiner
+  // Hämta maskiner
   const fetchMachines = async () => {
     setLoadingMachines(true);
     setError(null);
+
     const { data, error } = await supabase
       .from("machines")
       .select("*")
@@ -131,12 +132,14 @@ export default function Home() {
     } else {
       setMachines((data || []) as Machine[]);
     }
+
     setLoadingMachines(false);
   };
 
-  // hämta events för vald maskin
+  // Hämta events för maskin
   const fetchEvents = async (machineId: string) => {
     setLoadingEvents(true);
+
     const { data, error } = await supabase
       .from("machine_events")
       .select("*")
@@ -145,9 +148,11 @@ export default function Home() {
 
     if (error) {
       console.error(error);
+      setError("Kunde inte hämta historik.");
     } else {
       setEvents((data || []) as MachineEvent[]);
     }
+
     setLoadingEvents(false);
   };
 
@@ -155,25 +160,24 @@ export default function Home() {
     fetchMachines();
   }, []);
 
-  // när man klickar på en maskin i listan
+  // När man klickar på maskin
   const handleSelectMachine = (m: Machine) => {
     setSelectedMachine(m);
     setEvents([]);
     setVerifyMessage(null);
     setVerifyOk(null);
-    setAiSuggestion(null);
     setValuation(null);
     setCondition(null);
     fetchEvents(m.id);
   };
 
-  // spara ny maskin
+  // Spara ny maskin
   const handleAddMachine = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (!name || !model || !serialNumber) {
-      setError("Fyll i alla maskin-fält.");
+      setError("Fyll i namn, modell och serienummer.");
       return;
     }
 
@@ -198,14 +202,13 @@ export default function Home() {
       setSerialNumber("");
       setYear("");
       setHours("");
-      setNewMachineImageUrl(null);
       await fetchMachines();
     }
 
     setSavingMachine(false);
   };
 
-  // spara ny händelse (med blockchain-lik kedja)
+  // Spara händelse med hashkedja
   const handleAddEvent = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -246,8 +249,7 @@ export default function Home() {
       previous_hash: previousHash,
     };
 
-    const hashInput = JSON.stringify(payload);
-    const hash = await computeHash(hashInput);
+    const hash = await computeHash(JSON.stringify(payload));
 
     const { error } = await supabase.from("machine_events").insert([
       {
@@ -267,7 +269,7 @@ export default function Home() {
     setSavingEvent(false);
   };
 
-  // verifiera kedjan för vald maskin
+  // Verifiera kedja
   const handleVerifyChain = async () => {
     if (!selectedMachine) {
       setError("Välj en maskin först.");
@@ -292,14 +294,15 @@ export default function Home() {
     }
 
     const list = (data || []) as MachineEvent[];
-
     let prevHash: string | null = null;
 
     for (const ev of list) {
       if (ev.previous_hash !== prevHash) {
         setVerifyOk(false);
         setVerifyMessage(
-          "Kedjan är bruten vid en händelse (id: " + ev.id.slice(0, 8) + "…)."
+          "Kedjan är bruten vid en händelse (id: " +
+            ev.id.slice(0, 8) +
+            "…)."
         );
         setVerifying(false);
         return;
@@ -334,7 +337,7 @@ export default function Home() {
     setVerifying(false);
   };
 
-  // ladda upp bild för vald maskin
+  // Bilduppladdning – vald maskin
   const handleImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
     if (!selectedMachine) {
       setError("Välj en maskin först.");
@@ -389,56 +392,7 @@ export default function Home() {
     setUploadingImage(false);
   };
 
-  // AI-autofyll för befintlig maskin (vision-backend)
-  const handleAiDemo = async () => {
-    if (!selectedMachine || !selectedMachine.image_url) {
-      setError("Välj en maskin och ladda upp en bild innan AI-autofyll.");
-      return;
-    }
-
-    setError(null);
-    setAiSuggestion(null);
-
-    try {
-      const res = await fetch("/api/ai-scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageUrl: selectedMachine.image_url,
-        }),
-      });
-
-      const text = await res.text();
-
-      let data: any;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        console.error("AI-backend gav inte JSON:", text);
-        setError(
-          "AI-backend gav inte JSON (troligen feilsida). Första raden: " +
-            text.slice(0, 80)
-        );
-        return;
-      }
-
-      if (!res.ok) {
-        console.error(data);
-        setError("AI-fel: " + (data.error || "okänt fel"));
-        return;
-      }
-
-      setAiSuggestion({
-        model: data.model || "",
-        serial: data.serial || "",
-      });
-    } catch (err: any) {
-      console.error(err);
-      setError("Kunde inte kontakta AI-backend: " + err?.message);
-    }
-  };
-
-  // Ladda upp bild för ny maskin (AI-first)
+  // Bilduppladdning – ny maskin (AI-first)
   const handleNewMachineImageChange = async (
     e: ChangeEvent<HTMLInputElement>
   ) => {
@@ -476,7 +430,7 @@ export default function Home() {
     setUploadingNewMachineImage(false);
   };
 
-  // AI-first: läs av modell/serienr från bild och fyll i formulärfälten
+  // AI-first: läs modell/serienr från bild för NY maskin
   const handleNewMachineAi = async () => {
     if (!newMachineImageUrl) {
       setError("Ladda upp en bild på maskinen först.");
@@ -496,8 +450,8 @@ export default function Home() {
       });
 
       const text = await res.text();
-
       let data: any;
+
       try {
         data = JSON.parse(text);
       } catch {
@@ -537,120 +491,202 @@ export default function Home() {
     }
   };
 
-const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-  setLeadSubmitting(true);
-  setLeadSent(false);
-  setLeadError(null);
-
-  const form = e.currentTarget;
-
-  try {
-    const formData = new FormData(form);
-
-    const name = String(formData.get("name") || "");
-    const email = String(formData.get("email") || "");
-    const phone = String(formData.get("phone") || "");
-    const message = String(formData.get("message") || "");
-
-    const brand = String(formData.get("brand") || "");
-    const model = String(formData.get("model") || "");
-    const year = formData.get("year")
-      ? Number(formData.get("year"))
-      : null;
-    const hours = formData.get("operating_hours")
-      ? Number(formData.get("operating_hours"))
-      : null;
-    const locationText = String(formData.get("location_text") || "");
-    const valueEstimate = formData.get("value_estimate")
-      ? Number(formData.get("value_estimate"))
-      : null;
-    const conditionScore = formData.get("condition_score")
-      ? Number(formData.get("condition_score"))
-      : null;
-
-    const machineInfo = [
-      brand && `Brand: ${brand}`,
-      model && `Model: ${model}`,
-      year && `Årsmodell: ${year}`,
-      typeof hours === "number" && `Timmar: ${hours}`,
-      locationText && `Plats: ${locationText}`,
-      typeof valueEstimate === "number" &&
-        `Uppskattat värde: ${valueEstimate} NOK`,
-      typeof conditionScore === "number" &&
-        `Skick (1–5): ${conditionScore}`,
-    ]
-      .filter(Boolean)
-      .join(" | ");
-
-    const fullMessage =
-      message.trim().length > 0
-        ? `${message}\n\n---\n${machineInfo}`
-        : machineInfo || "";
-
-    const { data, error } = await supabase
-      .from("leads")
-      .insert({
-        name,
-        email,
-        phone: phone || null,
-        message: fullMessage || null,
-        source: "valuation_form",
-      })
-      .select("id, created_at")
-      .maybeSingle();
-
-    if (error) {
-      console.error("Lead insert error:", error);
-      setLeadError(
-        "Supabase-fel: " + (error.message || "okänt fel vid insert.")
-      );
-      setLeadSubmitting(false);
+  // AI-värdering
+  const handleValuation = async () => {
+    if (!selectedMachine) {
+      setError("Välj en maskin först.");
       return;
     }
 
-    console.log("Lead sparad:", data);
+    setError(null);
+    setLoadingValuation(true);
+    setValuation(null);
 
-    setLeadSent(true);
+    try {
+      const res = await fetch("/api/valuation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          machineId: selectedMachine.id,
+          model: selectedMachine.model,
+          year: selectedMachine.year,
+          hours: selectedMachine.hours,
+          conditionScore: condition?.condition_score ?? null,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error(data);
+        setError(
+          "Kunde inte beräkna värde: " + (data.error || "okänt fel")
+        );
+        setLoadingValuation(false);
+        return;
+      }
+
+      setValuation({
+        estimated_value: data.estimated_value,
+        confidence: data.confidence,
+        comment: data.comment ?? null,
+      });
+      setLoadingValuation(false);
+    } catch (err: any) {
+      console.error(err);
+      setError("Värderingsfel: " + (err?.message || "något gick fel"));
+      setLoadingValuation(false);
+    }
+  };
+
+  // AI-bedöm skick
+  const handleCondition = async () => {
+    if (!selectedMachine?.image_url) {
+      setError("Ladda upp en bild på maskinen först.");
+      return;
+    }
+
+    setError(null);
+    setLoadingCondition(true);
+    setCondition(null);
+
+    try {
+      const res = await fetch("/api/condition", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageUrl: selectedMachine.image_url,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error(data);
+        setError(
+          "Kunde inte bedöma skick: " + (data.error || "okänt fel")
+        );
+        setLoadingCondition(false);
+        return;
+      }
+
+      setCondition({
+        condition_score: data.condition_score,
+        condition_label: data.condition_label,
+        notes: data.notes,
+        risk_flags: data.risk_flags ?? [],
+      });
+      setLoadingCondition(false);
+    } catch (err: any) {
+      console.error(err);
+      setError(
+        "AI-skickbedömning misslyckades: " +
+          (err?.message || "okänt fel")
+      );
+      setLoadingCondition(false);
+    }
+  };
+
+  // Lead-form – direkt till Supabase
+  const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLeadSubmitting(true);
+    setLeadSent(false);
     setLeadError(null);
-    // efter att insert lyckats (innan form.reset()):
-try {
-  await fetch("/api/notify-new-lead", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name,
-      email,
-      phone,
-      machineInfo,
-    }),
-  });
-} catch (notifyErr) {
-  console.warn("Kunde inte skicka notifiering:", notifyErr);
-}
 
-    form.reset();
-  } catch (err: any) {
-    console.error("Oväntat client-fel i handleLeadSubmit:", err);
-    setLeadError(
-      "Client-fel: " + (err?.message || "okänt fel i inskick.")
-    );
-  } finally {
-    setLeadSubmitting(false);
-  }
-};
+    const form = e.currentTarget;
 
- const isOwnerView = viewMode === "owner";
+    try {
+      const formData = new FormData(form);
+
+      const name = String(formData.get("name") || "");
+      const email = String(formData.get("email") || "");
+      const phone = String(formData.get("phone") || "");
+      const message = String(formData.get("message") || "");
+
+      const brand = String(formData.get("brand") || "");
+      const formModel = String(formData.get("model") || "");
+      const year = formData.get("year")
+        ? Number(formData.get("year"))
+        : null;
+      const hours = formData.get("operating_hours")
+        ? Number(formData.get("operating_hours"))
+        : null;
+      const locationText = String(formData.get("location_text") || "");
+      const valueEstimate = formData.get("value_estimate")
+        ? Number(formData.get("value_estimate"))
+        : null;
+      const conditionScore = formData.get("condition_score")
+        ? Number(formData.get("condition_score"))
+        : null;
+
+      const machineInfo = [
+        brand && `Brand: ${brand}`,
+        formModel && `Model: ${formModel}`,
+        typeof year === "number" && `Årsmodell: ${year}`,
+        typeof hours === "number" && `Timmar: ${hours}`,
+        locationText && `Plats: ${locationText}`,
+        typeof valueEstimate === "number" &&
+          `Uppskattat värde: ${valueEstimate} NOK`,
+        typeof conditionScore === "number" &&
+          `Skick (1–5): ${conditionScore}`,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+
+      const fullMessage =
+        message.trim().length > 0
+          ? `${message}\n\n---\n${machineInfo}`
+          : machineInfo || "";
+
+      const { data, error } = await supabase
+        .from("leads")
+        .insert({
+          name,
+          email,
+          phone: phone || null,
+          message: fullMessage || null,
+          source: "valuation_form",
+        })
+        .select("id, created_at")
+        .maybeSingle();
+
+      if (error) {
+        console.error("Lead insert error:", error);
+        setLeadError(
+          "Supabase-fel: " + (error.message || "okänt fel vid insert.")
+        );
+        setLeadSubmitting(false);
+        return;
+      }
+
+      console.log("Lead sparad:", data);
+
+      setLeadSent(true);
+      setLeadError(null);
+      form.reset();
+    } catch (err: any) {
+      console.error("Oväntat client-fel i handleLeadSubmit:", err);
+      setLeadError(
+        "Client-fel: " + (err?.message || "okänt fel i inskick.")
+      );
+    } finally {
+      setLeadSubmitting(false);
+    }
+  };
+
+  const isOwnerView = viewMode === "owner";
 
   const shownSerial =
     selectedMachine
-      ? (isOwnerView
-          ? selectedMachine.serial_number || "-"
-          : maskSerial(selectedMachine.serial_number))
+      ? isOwnerView
+        ? selectedMachine.serial_number || "-"
+        : maskSerial(selectedMachine.serial_number)
       : "-";
 
   return (
     <main className="min-h-screen flex flex-col items-center p-6 gap-8 bg-slate-50">
+      {/* HERO */}
       <h1 className="text-3xl font-bold text-center">
         Få koll på din maskins värde &amp; historik – på ett ställe
       </h1>
@@ -660,14 +696,17 @@ try {
         köpa eller bara ha kontroll.
       </p>
 
-      {error && <p className="text-red-500 text-sm">{error}</p>}
+      {error && (
+        <p className="text-sm text-red-500">{error}</p>
+      )}
 
+      {/* MASKIN-DELEN */}
       <section className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Vänster sida: maskinregister */}
+        {/* Vänster: Lägg till + lista maskiner */}
         <div className="bg-white shadow-md rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-3">Lägg till maskin</h2>
 
-          {/* Steg 1: Bild + AI-förslag */}
+          {/* Steg 1: AI-first bild */}
           <div className="mb-4">
             <p className="text-sm font-semibold mb-1">
               1. Ladda upp bild (typskylt / maskin)
@@ -701,13 +740,13 @@ try {
             </button>
           </div>
 
-          {/* Steg 2: Formulär – AI fyller i, du justerar */}
+          {/* Steg 2: Formulär */}
           <form
             onSubmit={handleAddMachine}
             className="flex flex-col gap-3 mb-6"
           >
             <p className="text-sm font-semibold">
-              2. Kontrollera &amp; komplettera
+              2. Kontrollera & komplettera
             </p>
 
             <input
@@ -783,12 +822,12 @@ try {
           )}
         </div>
 
-        {/* Höger sida: valt maskinpass */}
+        {/* Höger: Maskinpass */}
         <div className="bg-white shadow-md rounded-xl p-6">
           {!selectedMachine ? (
             <p>
-              Välj en maskin i listan till vänster för att se maskinpass, bild,
-              historik, hash-kedja – som ägare eller i publik vy.
+              Välj en maskin i listan till vänster för att se maskinpass,
+              bild, historik, hash-kedja – som ägare eller i publik vy.
             </p>
           ) : (
             <>
@@ -824,60 +863,22 @@ try {
               </div>
 
               <p className="text-gray-600 mb-2">
-                Modell: {selectedMachine.model || "-"} • Serienr: {shownSerial}
+                Modell: {selectedMachine.model || "-"} • Serienr:{" "}
+                {shownSerial}
               </p>
 
-              {/* Värdering + AI-skick (bara i ägarvy) */}
+              {/* AI-värdering & skick – bara i ägarvy */}
               {isOwnerView && (
                 <div className="mb-4 space-y-2">
-                  {/* Värderingsknapp */}
                   <button
                     type="button"
-                    onClick={async () => {
-                      try {
-                        setError(null);
-                        setValuation(null);
-
-                        const res = await fetch("/api/valuation", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            machineId: selectedMachine.id,
-                            model: selectedMachine.model,
-                            year: selectedMachine.year,
-                            hours: selectedMachine.hours,
-                            conditionScore:
-                              condition?.condition_score ?? null,
-                          }),
-                        });
-
-                        const data = await res.json();
-
-                        if (!res.ok) {
-                          console.error(data);
-                          setError(
-                            "Kunde inte beräkna värde: " +
-                              (data.error || "okänt fel")
-                          );
-                          return;
-                        }
-
-                        setValuation({
-                          estimated_value: data.estimated_value,
-                          confidence: data.confidence,
-                          comment: data.comment ?? null,
-                        });
-                      } catch (err: any) {
-                        console.error(err);
-                        setError(
-                          "Värderingsfel: " +
-                            (err?.message || "något gick fel")
-                        );
-                      }
-                    }}
-                    className="text-xs bg-slate-900 text-white px-3 py-1 rounded"
+                    onClick={handleValuation}
+                    disabled={loadingValuation}
+                    className="text-xs bg-slate-900 text-white px-3 py-1 rounded disabled:opacity-60"
                   >
-                    🧮 Beräkna marknadsvärde
+                    {loadingValuation
+                      ? "Beräknar värde..."
+                      : "🧮 Beräkna marknadsvärde"}
                   </button>
 
                   {valuation && (
@@ -899,58 +900,11 @@ try {
                     </div>
                   )}
 
-                  {/* AI-bedöm skick */}
                   <button
                     type="button"
-                    onClick={async () => {
-                      if (!selectedMachine?.image_url) {
-                        setError("Ladda upp en bild på maskinen först.");
-                        return;
-                      }
-
-                      setError(null);
-                      setLoadingCondition(true);
-                      setCondition(null);
-
-                      try {
-                        const res = await fetch("/api/condition", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            imageUrl: selectedMachine.image_url,
-                          }),
-                        });
-
-                        const data = await res.json();
-
-                        if (!res.ok) {
-                          console.error(data);
-                          setError(
-                            "Kunde inte bedöma skick: " +
-                              (data.error || "okänt fel")
-                          );
-                          setLoadingCondition(false);
-                          return;
-                        }
-
-                        setCondition({
-                          condition_score: data.condition_score,
-                          condition_label: data.condition_label,
-                          notes: data.notes,
-                          risk_flags: data.risk_flags ?? [],
-                        });
-                        setLoadingCondition(false);
-                      } catch (err: any) {
-                        console.error(err);
-                        setError(
-                          "AI-skickbedömning misslyckades: " +
-                            (err?.message || "okänt fel")
-                        );
-                        setLoadingCondition(false);
-                      }
-                    }}
-                    className="text-xs bg-emerald-700 text-white px-3 py-1 rounded disabled:opacity-60"
+                    onClick={handleCondition}
                     disabled={loadingCondition}
+                    className="text-xs bg-emerald-700 text-white px-3 py-1 rounded disabled:opacity-60"
                   >
                     {loadingCondition
                       ? "AI bedömer skick..."
@@ -995,7 +949,7 @@ try {
                 </p>
               )}
 
-              {/* Bilduppladdning – endast vettigt i ägarvy */}
+              {/* Bilduppladdning för vald maskin */}
               {isOwnerView && (
                 <div className="mb-4">
                   <p className="text-sm font-semibold mb-1">
@@ -1017,25 +971,7 @@ try {
 
               {/* Lägg till händelse */}
               <div className="mb-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="font-semibold mb-0">
-                    Lägg till händelse
-                  </h3>
-                 
-
-                {aiSuggestion && (
-                  <p className="text-[11px] text-gray-600 mb-2">
-                    AI-förslag: Modell:{" "}
-                    <span className="font-semibold">
-                      {aiSuggestion.model || "-"}
-                    </span>{" "}
-                    • Serienr:{" "}
-                    <span className="font-semibold">
-                      {aiSuggestion.serial || "-"}
-                    </span>
-                  </p>
-                )}
-
+                <h3 className="font-semibold mb-2">Lägg till händelse</h3>
                 <form
                   onSubmit={handleAddEvent}
                   className="flex flex-col gap-3"
@@ -1141,19 +1077,15 @@ try {
         </div>
       </section>
 
-      {/* Värderingsförfrågan – lead-formulär */}
-     <section
-  id="valuation-form"
-  className="w-full max-w-xl bg-white shadow-md rounded-xl p-6"
->
-  <h2 className="text-xl font-semibold mb-1">
-    Skicka in din maskin för värdering
-  </h2>
-  <p className="text-sm text-gray-600 mb-4">
-    Fyll i formuläret så återkommer vi med en bedömd marknadsvärdering.
-    Kostnadsfritt och utan förpliktelser.
-  </p>
-
+      {/* LEAD-FORM / LANDNING */}
+      <section className="w-full max-w-xl bg-white shadow-md rounded-xl p-6">
+        <h2 className="text-xl font-semibold mb-1">
+          Skicka in din maskin för värdering
+        </h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Fyll i formuläret så återkommer vi med en bedömd marknadsvärdering.
+          Kostnadsfritt och utan förpliktelser.
+        </p>
 
         <form onSubmit={handleLeadSubmit} className="space-y-4">
           {/* Maskindata */}
@@ -1161,53 +1093,45 @@ try {
             <label className="block text-sm font-medium">Brand</label>
             <input
               name="brand"
-              className="border px-2 py-1 w-full"
+              className="border px-2 py-1 w-full rounded"
               placeholder="Volvo"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium">
-              Model
-            </label>
+            <label className="block text-sm font-medium">Model</label>
             <input
               name="model"
-              className="border px-2 py-1 w-full"
+              className="border px-2 py-1 w-full rounded"
               placeholder="L70H"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium">
-              Årsmodell
-            </label>
+            <label className="block text-sm font-medium">Årsmodell</label>
             <input
               type="number"
               name="year"
-              className="border px-2 py-1 w-full"
+              className="border px-2 py-1 w-full rounded"
               placeholder="2018"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium">
-              Timmar
-            </label>
+            <label className="block text-sm font-medium">Timmar</label>
             <input
               type="number"
               name="operating_hours"
-              className="border px-2 py-1 w-full"
+              className="border px-2 py-1 w-full rounded"
               placeholder="6500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium">
-              Plats
-            </label>
+            <label className="block text-sm font-medium">Plats</label>
             <input
               name="location_text"
-              className="border px-2 py-1 w-full"
+              className="border px-2 py-1 w-full rounded"
               placeholder="Tromsø"
             />
           </div>
@@ -1220,19 +1144,17 @@ try {
             <input
               type="number"
               name="value_estimate"
-              className="border px-2 py-1 w-full"
+              className="border px-2 py-1 w-full rounded"
               placeholder="750000"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium">
-              Skick (1–5)
-            </label>
+            <label className="block text-sm font-medium">Skick (1–5)</label>
             <input
               type="number"
               name="condition_score"
-              className="border px-2 py-1 w-full"
+              className="border px-2 py-1 w-full rounded"
               placeholder="4"
               min={1}
               max={5}
@@ -1244,43 +1166,37 @@ try {
             <label className="block text-sm font-medium">Namn</label>
             <input
               name="name"
-              className="border px-2 py-1 w-full"
+              className="border px-2 py-1 w-full rounded"
               placeholder="Ditt namn"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium">
-              E-post
-            </label>
+            <label className="block text-sm font-medium">E-post</label>
             <input
               type="email"
               name="email"
-              className="border px-2 py-1 w-full"
+              className="border px-2 py-1 w-full rounded"
               placeholder="du@example.com"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium">
-              Telefon
-            </label>
+            <label className="block text-sm font-medium">Telefon</label>
             <input
               name="phone"
-              className="border px-2 py-1 w-full"
+              className="border px-2 py-1 w-full rounded"
               placeholder="+47 ..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium">
-              Meddelande
-            </label>
+            <label className="block text-sm font-medium">Meddelande</label>
             <textarea
               name="message"
-              className="border px-2 py-1 w-full"
+              className="border px-2 py-1 w-full rounded"
               placeholder="Beskriv maskinen, extrautrustning, fel osv."
             />
           </div>
@@ -1306,5 +1222,3 @@ try {
     </main>
   );
 }
-
-
