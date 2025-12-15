@@ -1150,13 +1150,18 @@ return (
       </section>
 
       {/* Värderingsförfrågan – lead-formulär */}
-      <section
-        id="valuation-form"
-        className="w-full max-w-xl bg-white shadow-md rounded-xl p-6"
-      >
-        <h2 className="text-xl font-semibold mb-4">
-          Skicka värderingsförfrågan
-        </h2>
+     <section
+  id="valuation-form"
+  className="w-full max-w-xl bg-white shadow-md rounded-xl p-6"
+>
+  <h2 className="text-xl font-semibold mb-1">
+    Skicka in din maskin för värdering
+  </h2>
+  <p className="text-sm text-gray-600 mb-4">
+    Fyll i formuläret så återkommer vi med en bedömd marknadsvärdering.
+    Kostnadsfritt och utan förpliktelser.
+  </p>
+
 
         <form onSubmit={handleLeadSubmit} className="space-y-4">
           {/* Maskindata */}
