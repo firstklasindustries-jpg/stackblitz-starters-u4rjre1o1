@@ -115,7 +115,7 @@ export default function ExcavatorPage() {
         await runEstimate();
       }
 
-      const res = await fetch("/api/lead", {
+      const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
