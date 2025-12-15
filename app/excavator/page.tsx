@@ -115,23 +115,44 @@ export default function ExcavatorPage() {
         await runEstimate();
       }
 
-      const res = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name?.trim() || null,
-          email: form.email.trim(),
-          phone: form.phone?.trim() || null,
-          machine_type: "excavator",
-          machine_payload: payload,
-          estimate_low: estimateLow,
-          estimate_high: estimateHigh,
-          estimate_note: estimateNote,
-        }),
-      });
+   const midEstimate =
+  typeof estimateLow === "number" && typeof estimateHigh === "number"
+    ? Math.round((estimateLow + estimateHigh) / 2)
+    : null;
 
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || "Could not save lead");
+const conditionScore =
+  form.condition === "Excellent" ? 5 :
+  form.condition === "Good" ? 4 :
+  form.condition === "OK" ? 3 :
+  2;
+
+const res = await fetch("/api/lead", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    name: form.name?.trim() || "",
+    email: form.email.trim(),
+    phone: form.phone?.trim() || "",
+    message: "Grävmaskin värdering",
+
+    brand: form.brand?.trim() || "",
+    model: form.model?.trim() || "",
+    year: form.year ? Number(form.year) : null,
+    hours: form.hours ? Number(form.hours) : null,
+    locationText: form.location?.trim() || "",
+
+    valueEstimate: midEstimate,
+    conditionScore,
+
+    // optional (om du kör safe-merge i /api/lead)
+    machineType: "excavator",
+    machinePayload: payload,
+  }),
+});
+
+const data = await res.json();
+if (!data.ok) throw new Error(data.error || "Could not save lead");
+
 
       // Nice UX
       alert("Lead sparad! ✅ Vi återkommer med mer exakt värde.");
