@@ -1022,14 +1022,7 @@ return (
                   <h3 className="font-semibold mb-0">
                     Lägg till händelse
                   </h3>
-                  <button
-                    type="button"
-                    onClick={handleAiDemo}
-                    className="text-[11px] px-2 py-1 rounded bg-purple-100 text-purple-800"
-                  >
-                    🔍 AI-läs av bild (demo)
-                  </button>
-                </div>
+                 
 
                 {aiSuggestion && (
                   <p className="text-[11px] text-gray-600 mb-2">
