@@ -63,14 +63,19 @@ export async function POST(req: Request) {
         ? `${message}\n\n---\n${machineInfo}`
         : machineInfo || "";
 
-   const { error: insertError } = await supabase.from("leads").insert(
-  {
-    name,
-    email,
-    phone: phone || null,
-    message: fullMessage || null,
-    source: "valuation_form",
-  },
+ const { error: insertError } = await supabase.from("leads").insert(
+  [
+    {
+      name,
+      email,
+      phone: phone || null,
+      message: fullMessage || null,
+      source: "valuation_form",
+    },
+  ],
+  { count: undefined } // optional, bara för att matcha overload tydligt
+).select(); // <-- TA INTE select här
+
   { returning: "minimal" } // <-- viktig
 );
 
