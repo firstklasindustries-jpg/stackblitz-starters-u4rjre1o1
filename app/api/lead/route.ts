@@ -63,13 +63,16 @@ export async function POST(req: Request) {
         ? `${message}\n\n---\n${machineInfo}`
         : machineInfo || "";
 
-    const { error: insertError } = await supabase.from("leads").insert({
-      name,
-      email,
-      phone: phone || null,
-      message: fullMessage || null,
-      source: "valuation_form",
-    });
+   const { error: insertError } = await supabase.from("leads").insert(
+  {
+    name,
+    email,
+    phone: phone || null,
+    message: fullMessage || null,
+    source: "valuation_form",
+  },
+  { returning: "minimal" } // <-- viktig
+);
 
     if (insertError) {
       console.error("Lead insert error (server):", insertError);
