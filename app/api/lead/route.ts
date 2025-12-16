@@ -80,8 +80,26 @@ export async function POST(req: Request) {
         message: fullMessage || null,
         source: "valuation_form",
       })
-      .select("id, created_at, source")
-      .maybeSingle();
+    const { error } = await supabase
+  .from("leads")
+  .insert({
+    name,
+    email,
+    phone: phone || null,
+    message: fullMessage || null,
+    source: "valuation_form",
+  });
+
+if (error) {
+  console.error("Lead insert error (server):", error);
+  return NextResponse.json(
+    { ok: false, error: error.message || "Kunde inte spara lead i databasen." },
+    { status: 500 }
+  );
+}
+
+return NextResponse.json({ ok: true });
+
 
     if (error) {
       console.error("Lead insert error (server):", error);
