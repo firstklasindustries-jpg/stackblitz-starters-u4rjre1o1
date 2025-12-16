@@ -6,25 +6,19 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // Lead basics
     const name = String(body.name || "");
     const email = String(body.email || "");
     const phone = String(body.phone || "");
     const message = String(body.message || "");
 
-    // Existing machine fields (hjullastare använder dessa)
     const brand = String(body.brand || "");
     const model = String(body.model || "");
 
     const year =
-      typeof body.year === "number" && !Number.isNaN(body.year)
-        ? body.year
-        : null;
+      typeof body.year === "number" && !Number.isNaN(body.year) ? body.year : null;
 
     const hours =
-      typeof body.hours === "number" && !Number.isNaN(body.hours)
-        ? body.hours
-        : null;
+      typeof body.hours === "number" && !Number.isNaN(body.hours) ? body.hours : null;
 
     const locationText = String(body.locationText || "");
 
@@ -38,7 +32,7 @@ export async function POST(req: Request) {
         ? body.conditionScore
         : null;
 
-    // NEW (safe): optional machineType + payload (t.ex. grävmaskin)
+    // Optional extras (safe)
     const machineType = String(body.machineType || body.machine_type || "");
     const machinePayload =
       body.machinePayload && typeof body.machinePayload === "object"
@@ -47,7 +41,6 @@ export async function POST(req: Request) {
           ? body.machine_payload
           : null;
 
-    // Build machine info (same as before + optional extras)
     const machineInfoParts = [
       machineType && `Machine type: ${machineType}`,
       brand && `Brand: ${brand}`,
@@ -57,9 +50,8 @@ export async function POST(req: Request) {
       locationText && `Plats: ${locationText}`,
       typeof valueEstimate === "number" && `Uppskattat värde: ${valueEstimate} NOK`,
       typeof conditionScore === "number" && `Skick (1–5): ${conditionScore}`,
-    ].filter(Boolean);
+    ].filter(Boolean) as string[];
 
-    // If payload exists, include it in message (MVP-friendly, no DB changes)
     if (machinePayload) {
       machineInfoParts.push(`Payload: ${JSON.stringify(machinePayload)}`);
     }
@@ -71,55 +63,27 @@ export async function POST(req: Request) {
         ? `${message}\n\n---\n${machineInfo}`
         : machineInfo || "";
 
-    const { data, error } = await supabase
-      .from("leads")
-      .insert({
-        name,
-        email,
-        phone: phone || null,
-        message: fullMessage || null,
-        source: "valuation_form",
-      })
-    const { error } = await supabase
-  .from("leads")
-  .insert({
-    name,
-    email,
-    phone: phone || null,
-    message: fullMessage || null,
-    source: "valuation_form",
-  });
+    const { error: insertError } = await supabase.from("leads").insert({
+      name,
+      email,
+      phone: phone || null,
+      message: fullMessage || null,
+      source: "valuation_form",
+    });
 
-if (error) {
-  console.error("Lead insert error (server):", error);
-  return NextResponse.json(
-    { ok: false, error: error.message || "Kunde inte spara lead i databasen." },
-    { status: 500 }
-  );
-}
-
-return NextResponse.json({ ok: true });
-
-
-    if (error) {
-      console.error("Lead insert error (server):", error);
+    if (insertError) {
+      console.error("Lead insert error (server):", insertError);
       return NextResponse.json(
-        {
-          ok: false,
-          error: error.message || "Kunde inte spara lead i databasen.",
-        },
+        { ok: false, error: insertError.message || "Kunde inte spara lead i databasen." },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ ok: true, lead: data });
+    return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error("Oväntat fel i POST /api/lead:", err);
     return NextResponse.json(
-      {
-        ok: false,
-        error: err?.message || "Oväntat fel i servern vid lead-inskick.",
-      },
+      { ok: false, error: err?.message || "Oväntat fel i servern vid lead-inskick." },
       { status: 500 }
     );
   }
