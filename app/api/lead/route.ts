@@ -1,34 +1,141 @@
-// app/api/admin/leads/route.ts
+// app/api/lead/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-export async function GET(req: Request) {
+function getSupabaseAdmin() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  // IMPORTANT: return JSON error instead of throwing at top-level (avoids build crash)
+  if (!url || !key) return null;
+
+  return createClient(url, key, {
+    auth: { persistSession: false },
+  });
+}
+
+export async function POST(req: Request) {
   try {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!url) return NextResponse.json({ ok: false, error: "Missing env: SUPABASE_URL" }, { status: 500 });
-    if (!key) return NextResponse.json({ ok: false, error: "Missing env: SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
-
-    // optional protection
-    const adminKey = process.env.ADMIN_KEY;
-    if (adminKey) {
-      const provided = req.headers.get("x-admin-key");
-      if (provided !== adminKey) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    const supabaseAdmin = getSupabaseAdmin();
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { ok: false, error: "Missing env: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" },
+        { status: 500 }
+      );
     }
 
-    const supabase = createClient(url, key);
+    const body = await req.json();
 
-    const { data, error } = await supabase
-      .from("leads")
-      .select("id, created_at, name, email, phone, source, message, machine_type, status")
-      .order("created_at", { ascending: false })
-      .limit(200);
+    // Lead basics
+    const name = String(body.name || "").trim();
+    const email = String(body.email || "").trim();
+    const phone = String(body.phone || "").trim();
+    const message = String(body.message || "").trim();
 
-    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (!email) {
+      return NextResponse.json({ ok: false, error: "Email krävs." }, { status: 400 });
+    }
 
-    return NextResponse.json({ ok: true, leads: data });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
+    // Common machine fields (works for wheel loader + excavator)
+    const brand = String(body.brand || "").trim();
+    const model = String(body.model || "").trim();
+    const locationText = String(body.locationText || "").trim();
+
+    const year =
+      typeof body.year === "number" && Number.isFinite(body.year) ? body.year : null;
+
+    const hours =
+      typeof body.hours === "number" && Number.isFinite(body.hours) ? body.hours : null;
+
+    const valueEstimate =
+      typeof body.valueEstimate === "number" && Number.isFinite(body.valueEstimate)
+        ? body.valueEstimate
+        : null;
+
+    const conditionScore =
+      typeof body.conditionScore === "number" && Number.isFinite(body.conditionScore)
+        ? body.conditionScore
+        : null;
+
+    // New: support both naming styles
+    const machineType = String(body.machineType || body.machine_type || "").trim();
+
+    const machinePayloadRaw = body.machinePayload ?? body.machine_payload ?? null;
+    const machinePayload =
+      machinePayloadRaw && typeof machinePayloadRaw === "object" ? machinePayloadRaw : null;
+
+    // Excavator estimate fields (optional)
+    const estimate_low =
+      typeof body.estimate_low === "number" && Number.isFinite(body.estimate_low)
+        ? body.estimate_low
+        : null;
+
+    const estimate_high =
+      typeof body.estimate_high === "number" && Number.isFinite(body.estimate_high)
+        ? body.estimate_high
+        : null;
+
+    const estimate_note =
+      typeof body.estimate_note === "string" ? body.estimate_note : null;
+
+    // Build a readable message (so you can always see what the user sent)
+    const machineInfoParts = [
+      machineType && `Machine type: ${machineType}`,
+      brand && `Brand: ${brand}`,
+      model && `Model: ${model}`,
+      year !== null && `Årsmodell: ${year}`,
+      hours !== null && `Timmar: ${hours}`,
+      locationText && `Plats: ${locationText}`,
+      valueEstimate !== null && `Uppskattat värde: ${valueEstimate} NOK`,
+      conditionScore !== null && `Skick (1–5): ${conditionScore}`,
+      estimate_low !== null && `Estimat low: ${estimate_low} NOK`,
+      estimate_high !== null && `Estimat high: ${estimate_high} NOK`,
+      estimate_note && `Estimat note: ${estimate_note}`,
+      machinePayload && `Payload: ${JSON.stringify(machinePayload)}`,
+    ].filter(Boolean);
+
+    const machineInfo = machineInfoParts.join(" | ");
+
+    const fullMessage =
+      message.length > 0
+        ? `${message}\n\n---\n${machineInfo}`
+        : machineInfo || null;
+
+    const insertRow: Record<string, any> = {
+      name: name || null,
+      email,
+      phone: phone || null,
+      message: fullMessage,
+      source: "valuation_form",
+
+      // If these columns exist (you showed they do), we store them too:
+      machine_type: machineType || null,
+      machine_payload: machinePayload ?? null,
+      estimate_low,
+      estimate_high,
+      estimate_note,
+    };
+
+    const { error: insertError } = await supabaseAdmin.from("leads").insert(insertRow);
+
+    if (insertError) {
+      console.error("Lead insert error (admin):", insertError);
+      return NextResponse.json(
+        { ok: false, error: insertError.message || "Kunde inte spara lead i databasen." },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err: any) {
+    console.error("Oväntat fel i POST /api/lead:", err);
+    return NextResponse.json(
+      { ok: false, error: err?.message || "Oväntat fel i servern vid lead-inskick." },
+      { status: 500 }
+    );
   }
+}
+
+export async function GET() {
+  return NextResponse.json({ ok: false, error: "Use POST" }, { status: 405 });
 }
