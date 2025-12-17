@@ -138,25 +138,26 @@ const fetchMachines = async () => {
   }
 };
 
-  // Hämta events för maskin
-  const fetchEvents = async (machineId: string) => {
-    setLoadingEvents(true);
+ // Hämta events för maskin (via server-API)
+const fetchEvents = async (machineId: string) => {
+  setLoadingEvents(true);
 
-    const { data, error } = await supabase
-      .from("machine_events")
-      .select("*")
-      .eq("machine_id", machineId)
-      .order("created_at", { ascending: false });
+  try {
+    const res = await fetch(`/api/machines/events?machineId=${encodeURIComponent(machineId)}`);
+    const json = await res.json();
 
-    if (error) {
-      console.error(error);
-      setError("Kunde inte hämta historik.");
-    } else {
-      setEvents((data || []) as MachineEvent[]);
+    if (!json.ok) {
+      throw new Error(json.error || "Kunde inte hämta historik.");
     }
 
+    setEvents((json.events || []) as MachineEvent[]);
+  } catch (err: any) {
+    console.error(err);
+    setError("Kunde inte hämta historik.");
+  } finally {
     setLoadingEvents(false);
-  };
+  }
+};
 
   useEffect(() => {
     fetchMachines();
