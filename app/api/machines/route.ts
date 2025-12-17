@@ -15,11 +15,10 @@ export async function GET() {
     }
 
     const supabase = createClient(url, key, { auth: { persistSession: false } });
-
-    const { data, error } = await supabase
-      .from("machines")
-      .select("*")
-      .order("created_at", { ascending: false });
+const { data, error } = await supabase
+  .from("machines")
+  .select("id, name, model, serial_number, created_at, image_url, year, hours, machine_code, registration_no, status, country, location_text, dpp_ready, updated_at")
+  .order("created_at", { ascending: false });
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
