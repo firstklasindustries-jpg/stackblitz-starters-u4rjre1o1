@@ -5,6 +5,12 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function GET() {
   try {
+    console.log("DEPLOY STAMP /api/machines", {
+  stamp: "machines-v1-2025-12-17",
+  has_SUPABASE_URL: !!process.env.SUPABASE_URL,
+  has_SERVICE_ROLE: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+});
+
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
