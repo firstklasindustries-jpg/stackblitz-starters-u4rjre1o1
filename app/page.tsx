@@ -184,32 +184,37 @@ const fetchEvents = async (machineId: string) => {
       return;
     }
 
-    setSavingMachine(true);
-const res = await fetch("/api/machines/create", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    name,
-    model,
-    serial_number: serialNumber,
-    year: year ? parseInt(year, 10) : null,
-    hours: hours ? parseInt(hours, 10) : null,
-  }),
-});
+setSavingMachine(true);
 
-const json = await res.json();
-if (!json.ok) {
-  setError(json.error || "Kunde inte spara maskin.");
+try {
+  const res = await fetch("/api/machines/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name,
+      model,
+      serial_number: serialNumber,
+      year: year ? parseInt(year, 10) : null,
+      hours: hours ? parseInt(hours, 10) : null,
+    }),
+  });
+
+  const json = await res.json();
+
+  if (!json.ok) {
+    throw new Error(json.error || "Kunde inte spara maskin.");
+  }
+
+  await fetchMachines();
+
+  // (valfritt) töm fält
+  // setName(""); setModel(""); setSerialNumber(""); setYear(""); setHours("");
+} catch (e: any) {
+  console.error(e);
+  setError(e?.message || "Kunde inte spara maskin.");
+} finally {
   setSavingMachine(false);
-  return;
 }
-
-// uppdatera listan
-await fetchMachines();
-
-
-    setSavingMachine(false);
-  };
 
   // Spara händelse med hashkedja
   const handleAddEvent = async (e: FormEvent) => {
