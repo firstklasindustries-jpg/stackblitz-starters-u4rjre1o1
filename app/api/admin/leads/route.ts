@@ -1,21 +1,22 @@
-// app/api/admin/leads/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+
+type LeadStatus = "new" | "contacted" | "in_progress" | "won" | "lost";
 
 function getAdminClient() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
   if (!url || !key) return null;
 
-  return createClient(url, key, {
-    auth: { persistSession: false },
-  });
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
-export async function GET(req: Request) {
+function isValidStatus(s: any): s is LeadStatus {
+  return ["new", "contacted", "in_progress", "won", "lost"].includes(String(s));
+}
+
+export async function PATCH(req: Request) {
   try {
-    // Protect endpoint with ADMIN_KEY (you already have it in Vercel)
     const adminKey = process.env.ADMIN_KEY;
     if (adminKey) {
       const provided = req.headers.get("x-admin-key");
@@ -32,26 +33,26 @@ export async function GET(req: Request) {
       );
     }
 
-    const { data, error } = await supabase
-      .from("leads")
-      .select("id, name, email, phone, message, source, created_at, machine_type, status")
-      .order("created_at", { ascending: false })
-      .limit(500);
+    const body = await req.json();
+    const id = String(body.id || "");
+    const status = body.status;
 
-    if (error) {
-      console.error("Supabase admin/leads error:", error);
-      return NextResponse.json(
-        { ok: false, error: error.message || "Kunde inte hämta leads." },
-        { status: 500 }
-      );
+    if (!id) {
+      return NextResponse.json({ ok: false, error: "Missing id" }, { status: 400 });
+    }
+    if (!isValidStatus(status)) {
+      return NextResponse.json({ ok: false, error: "Invalid status" }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true, leads: data ?? [] });
-  } catch (err: any) {
-    console.error("Oväntat fel i admin/leads:", err);
-    return NextResponse.json(
-      { ok: false, error: err?.message || "Oväntat fel i servern vid hämtning av leads." },
-      { status: 500 }
-    );
+    const { error } = await supabase.from("leads").update({ status }).eq("id", id);
+
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
   }
 }
+
