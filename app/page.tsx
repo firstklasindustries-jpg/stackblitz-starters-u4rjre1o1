@@ -184,28 +184,28 @@ const fetchMachines = async () => {
     }
 
     setSavingMachine(true);
+const res = await fetch("/api/machines/create", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    name,
+    model,
+    serial_number: serialNumber,
+    year: year ? parseInt(year, 10) : null,
+    hours: hours ? parseInt(hours, 10) : null,
+  }),
+});
 
-    const { error } = await supabase.from("machines").insert([
-      {
-        name,
-        model,
-        serial_number: serialNumber,
-        year: year ? parseInt(year, 10) : null,
-        hours: hours ? parseInt(hours, 10) : null,
-      },
-    ]);
+const json = await res.json();
+if (!json.ok) {
+  setError(json.error || "Kunde inte spara maskin.");
+  setSavingMachine(false);
+  return;
+}
 
-    if (error) {
-      console.error(error);
-      setError("Kunde inte spara maskinen.");
-    } else {
-      setName("");
-      setModel("");
-      setSerialNumber("");
-      setYear("");
-      setHours("");
-      await fetchMachines();
-    }
+// uppdatera listan
+await fetchMachines();
+
 
     setSavingMachine(false);
   };
