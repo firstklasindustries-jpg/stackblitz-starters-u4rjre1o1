@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
 
 type LeadStatus = "new" | "contacted" | "in_progress" | "won" | "lost";
 
@@ -26,6 +25,7 @@ const STATUS_LABELS: Record<LeadStatus, string> = {
 };
 
 export default function AdminPage() {
+  const [adminKey, setAdminKey] = useState("");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,30 +36,17 @@ export default function AdminPage() {
       setLoading(true);
       setError(null);
 
-      const { data, error } = await supabase
-        .from("leads")
-        .select(
-          "id, name, email, phone, message, source, created_at, machine_type, status"
-        )
-        .order("created_at", { ascending: false });
+      const res = await fetch("/api/admin/leads", {
+        headers: adminKey ? { "x-admin-key": adminKey } : {},
+      });
 
-      if (error) {
-        console.error("Supabase admin-fetch error:", error);
-        setError(
-          "Kunde inte hämta leads: " +
-            (error.message || "okänt fel")
-        );
-        setLeads([]);
-        return;
-      }
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Kunde inte hämta leads.");
 
-      setLeads((data || []) as Lead[]);
+      setLeads((data.leads || []) as Lead[]);
     } catch (err: any) {
-      console.error("Client-fel i admin-fetch:", err);
-      setError(
-        "Client-fel vid hämtning av leads: " +
-          (err?.message || "okänt fel")
-      );
+      setError(err?.message || "Okänt fel vid hämtning av leads.");
+      setLeads([]);
     } finally {
       setLoading(false);
     }
@@ -70,32 +57,21 @@ export default function AdminPage() {
       setUpdatingId(id);
       setError(null);
 
-      const { error } = await supabase
-        .from("leads")
-        .update({ status })
-        .eq("id", id);
+      const res = await fetch("/api/admin/leads/status", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(adminKey ? { "x-admin-key": adminKey } : {}),
+        },
+        body: JSON.stringify({ id, status }),
+      });
 
-      if (error) {
-        console.error("Supabase update status error:", error);
-        setError(
-          "Kunde inte uppdatera status: " +
-            (error.message || "okänt fel")
-        );
-        return;
-      }
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Kunde inte uppdatera status.");
 
-      // uppdatera lokalt
-      setLeads((prev) =>
-        prev.map((lead) =>
-          lead.id === id ? { ...lead, status } : lead
-        )
-      );
+      setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, status } : l)));
     } catch (err: any) {
-      console.error("Client-fel vid status-uppdatering:", err);
-      setError(
-        "Client-fel vid status-uppdatering: " +
-          (err?.message || "okänt fel")
-      );
+      setError(err?.message || "Okänt fel vid status-uppdatering.");
     } finally {
       setUpdatingId(null);
     }
@@ -103,6 +79,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchLeads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -111,23 +88,26 @@ export default function AdminPage() {
         <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">Admin – Leads</h1>
-            <p className="text-sm text-gray-600">
-              Hantera inkommande värderingsförfrågningar.
-            </p>
+            <p className="text-sm text-gray-600">Hantera inkommande värderingsförfrågningar.</p>
           </div>
-          <div className="flex gap-2">
+
+          <div className="flex flex-col md:flex-row gap-2 md:items-center">
+            <input
+              value={adminKey}
+              onChange={(e) => setAdminKey(e.target.value)}
+              placeholder="ADMIN_KEY"
+              className="px-3 py-2 rounded border text-sm w-full md:w-[260px]"
+            />
             <button
               onClick={fetchLeads}
-              className="px-3 py-1 rounded bg-slate-900 text-white text-sm"
+              className="px-3 py-2 rounded bg-slate-900 text-white text-sm"
             >
               Uppdatera
             </button>
           </div>
         </header>
 
-        {error && (
-          <p className="text-sm text-red-500">{error}</p>
-        )}
+        {error && <p className="text-sm text-red-500">{error}</p>}
 
         {loading ? (
           <p>Laddar leads...</p>
@@ -136,15 +116,13 @@ export default function AdminPage() {
         ) : (
           <div className="space-y-3">
             {leads.map((lead) => {
-              const status: LeadStatus =
-                (lead.status as LeadStatus) || "new";
+              const status: LeadStatus = (lead.status as LeadStatus) || "new";
 
               return (
                 <div
                   key={lead.id}
                   className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 text-sm space-y-2"
                 >
-                  {/* Header-rad */}
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
                     <div>
                       <p className="font-semibold">
@@ -153,26 +131,20 @@ export default function AdminPage() {
                           ({lead.email || "ingen e-post"})
                         </span>
                       </p>
-                      {lead.phone && (
-                        <p className="text-xs text-gray-600">
-                          Tel: {lead.phone}
-                        </p>
-                      )}
+
+                      {lead.phone && <p className="text-xs text-gray-600">Tel: {lead.phone}</p>}
+
                       {lead.machine_type && (
-                        <p className="text-xs text-gray-600 mt-1">
-                          Maskintyp: {lead.machine_type}
-                        </p>
+                        <p className="text-xs text-gray-600 mt-1">Maskintyp: {lead.machine_type}</p>
                       )}
                     </div>
+
                     <div className="text-right space-y-1">
                       <p className="text-[11px] text-gray-500">
-                        {new Date(
-                          lead.created_at
-                        ).toLocaleString()}
+                        {new Date(lead.created_at).toLocaleString()}
                       </p>
-                      <p className="text-[11px] text-gray-400">
-                        Källa: {lead.source || "-"}
-                      </p>
+                      <p className="text-[11px] text-gray-400">Källa: {lead.source || "-"}</p>
+
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
                           status === "new"
@@ -191,33 +163,19 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  {/* Meddelande */}
                   {lead.message && (
                     <p className="mt-1 text-[13px] whitespace-pre-line text-gray-800">
                       {lead.message}
                     </p>
                   )}
 
-                  {/* Status-knappar */}
-                  <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-100 mt-2 pt-2">
-                    <p className="text-[11px] text-gray-500 mr-2">
-                      Uppdatera status:
-                    </p>
-                    {(
-                      [
-                        "new",
-                        "contacted",
-                        "in_progress",
-                        "won",
-                        "lost",
-                      ] as LeadStatus[]
-                    ).map((s) => (
+                  <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-2 mt-2">
+                    <p className="text-[11px] text-gray-500 mr-2">Uppdatera status:</p>
+                    {(Object.keys(STATUS_LABELS) as LeadStatus[]).map((s) => (
                       <button
                         key={s}
                         type="button"
-                        onClick={() =>
-                          updateLeadStatus(lead.id, s)
-                        }
+                        onClick={() => updateLeadStatus(lead.id, s)}
                         disabled={updatingId === lead.id}
                         className={`text-[11px] px-2 py-1 rounded border ${
                           status === s
