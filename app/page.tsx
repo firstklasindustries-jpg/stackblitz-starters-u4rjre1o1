@@ -116,25 +116,27 @@ export default function Home() {
   const [leadSent, setLeadSent] = useState(false);
   const [leadError, setLeadError] = useState<string | null>(null);
 
-  // Hämta maskiner
-  const fetchMachines = async () => {
-    setLoadingMachines(true);
-    setError(null);
+ // Hämta maskiner (via server-API)
+const fetchMachines = async () => {
+  setLoadingMachines(true);
+  setError(null);
 
-    const { data, error } = await supabase
-      .from("machines")
-      .select("*")
-      .order("created_at", { ascending: false });
+  try {
+    const res = await fetch("/api/machines");
+    const json = await res.json();
 
-    if (error) {
-      console.error(error);
-      setError("Kunde inte hämta maskiner.");
-    } else {
-      setMachines((data || []) as Machine[]);
+    if (!json.ok) {
+      throw new Error(json.error || "Kunde inte hämta maskiner.");
     }
 
+    setMachines((json.machines || []) as Machine[]);
+  } catch (err: any) {
+    console.error(err);
+    setError("Kunde inte hämta maskiner.");
+  } finally {
     setLoadingMachines(false);
-  };
+  }
+};
 
   // Hämta events för maskin
   const fetchEvents = async (machineId: string) => {
