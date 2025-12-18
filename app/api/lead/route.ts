@@ -1,17 +1,34 @@
-// app/api/lead/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-function getSupabaseAdmin() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+function decodeJwtRole(jwt: string) {
+  try {
+    const payload = jwt.split(".")[1];
+    const json = Buffer.from(payload, "base64").toString("utf8");
+    const obj = JSON.parse(json);
+    return obj?.role || null;
+  } catch {
+    return null;
+  }
 
-  // IMPORTANT: return JSON error instead of throwing at top-level (avoids build crash)
+function getSupabaseAdmin() {
+  const url = (process.env.SUPABASE_URL || "").trim();
+  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+
+  // ✅ SÄTT DEN HÄR (logg för att se vad Vercel faktiskt ger dig)
+  console.log("LEAD ENV CHECK", {
+    hasUrl: !!url,
+    urlPrefix: url.slice(0, 25),
+    keyRole: key ? decodeJwtRole(key) : null,
+  });
+
   if (!url || !key) return null;
 
   return createClient(url, key, {
     auth: { persistSession: false },
   });
+}
+
 }
 
 export async function POST(req: Request) {
