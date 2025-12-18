@@ -88,7 +88,6 @@ export default function Home() {
   const [events, setEvents] = useState<MachineEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
 
-  const [eventType, setEventType] = useState("service");
 const [eventDescription, setEventDescription] = useState("");
 const [savingEvent, setSavingEvent] = useState(false);
 
