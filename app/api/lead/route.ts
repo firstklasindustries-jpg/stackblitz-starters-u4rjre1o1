@@ -30,8 +30,6 @@ function getSupabaseAdmin() {
   });
 }
 
-}
-
 export async function POST(req: Request) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
