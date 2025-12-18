@@ -576,6 +576,63 @@ const handleVerifyChain = async () => {
                 Modell: {selectedMachine.model || "-"} • Serienr:{" "}
                 {selectedMachine.serial_number || "-"}
               </p>
+              {/* ADD EVENT + VERIFY */}
+<div className="border rounded-lg p-3 bg-slate-50 mb-4">
+  <h3 className="font-semibold mb-2">Lägg till händelse</h3>
+
+  <form onSubmit={handleAddEvent} className="flex flex-col gap-2">
+    <select
+      value={eventType}
+      onChange={(e) => setEventType(e.target.value)}
+      className="border rounded px-2 py-2"
+    >
+      <option value="service">Service</option>
+      <option value="owner_change">Ägarbyte</option>
+      <option value="note">Notering</option>
+    </select>
+
+    <textarea
+      value={eventDescription}
+      onChange={(e) => setEventDescription(e.target.value)}
+      className="border rounded px-2 py-2 min-h-[90px]"
+      placeholder="Beskrivning..."
+    />
+
+    <button
+      type="submit"
+      disabled={savingEvent}
+      className="bg-blue-600 text-white rounded px-3 py-2 font-semibold disabled:opacity-60"
+    >
+      {savingEvent ? "Sparar..." : "Spara händelse"}
+    </button>
+  </form>
+
+  <div className="flex items-center gap-3 mt-3">
+    <button
+      type="button"
+      onClick={handleVerifyChain}
+      disabled={verifying || !selectedMachine}
+      className="text-xs bg-emerald-600 text-white px-3 py-1 rounded disabled:opacity-60"
+    >
+      {verifying ? "Verifierar..." : "Verifiera kedja"}
+    </button>
+
+    {verifyMessage && (
+      <span
+        className={`text-xs ${
+          verifyOk === false
+            ? "text-red-600"
+            : verifyOk === true
+            ? "text-emerald-700"
+            : "text-gray-600"
+        }`}
+      >
+        {verifyMessage}
+      </span>
+    )}
+  </div>
+</div>
+
 
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold">Historik</h3>
