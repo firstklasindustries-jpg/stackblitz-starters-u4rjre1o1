@@ -15,6 +15,12 @@ export async function GET(req: Request) {
         { status: 500 }
       );
     }
+const sentKey = req.headers.get("x-admin-key") || "";
+console.log("ADMIN LEADS AUTH", {
+  hasEnvAdminKey: !!adminKey,
+  sentLen: sentKey.length,
+  sentPrefix: sentKey.slice(0, 6),
+});
 
     // (MVP-skydd) kräver x-admin-key header
     const sentKey = req.headers.get("x-admin-key") || "";
