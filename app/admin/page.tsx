@@ -39,9 +39,13 @@ export default function AdminPage() {
     const res = await fetch("/api/admin/leads", {
       headers: {
         // valfritt: om du skyddar med admin key (se route nedan)
-        "x-admin-key": (localStorage.getItem("ADMIN_KEY") || ""),
-      },
-    });
+     const key = localStorage.getItem("ADMIN_KEY") || "";
+
+const res = await fetch("/api/admin/leads", {
+  headers: {
+    "x-admin-key": key,
+  },
+});
 
     const text = await res.text();
 
