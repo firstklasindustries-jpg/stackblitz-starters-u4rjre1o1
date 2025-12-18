@@ -52,50 +52,16 @@ export default function Home() {
   const [loadingMachines, setLoadingMachines] = useState(true);
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
 
-  <div className="border rounded-lg p-3 bg-slate-50 mb-4">
-  <h3 className="font-semibold mb-2">Lägg till händelse</h3>
-
-  <form onSubmit={handleAddEvent} className="flex flex-col gap-2">
-    <select
-      value={eventType}
-      onChange={(e) => setEventType(e.target.value)}
-      className="border rounded px-2 py-2"
-    >
-      <option value="service">Service</option>
-      <option value="owner_change">Ägarbyte</option>
-      <option value="note">Notering</option>
-    </select>
-
-    <textarea
-      value={eventDescription}
-      onChange={(e) => setEventDescription(e.target.value)}
-      className="border rounded px-2 py-2 min-h-[90px]"
-      placeholder="Beskrivning..."
-    />
-
-    <button
-      type="submit"
-      disabled={savingEvent}
-      className="bg-blue-600 text-white rounded px-3 py-2 font-semibold disabled:opacity-60"
-    >
-      {savingEvent ? "Sparar..." : "Spara händelse"}
-    </button>
-  </form>
-</div>
-
   
   // ---- events ----
-  const [events, setEvents] = useState<MachineEvent[]>([]);
-  const [loadingEvents, setLoadingEvents] = useState(false);
+const [events, setEvents] = useState<MachineEvent[]>([]);
+const [loadingEvents, setLoadingEvents] = useState(false);
 
-const [eventDescription, setEventDescription] = useState("");
-const [savingEvent, setSavingEvent] = useState(false);
-
+const [eventType, setEventType] = useState("service");
 const [verifying, setVerifying] = useState(false);
 const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
 const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
 
-  
   // ---- add machine form ----
   const [mName, setMName] = useState("");
   const [mModel, setMModel] = useState("");
@@ -448,8 +414,7 @@ const handleVerifyChain = async () => {
     }
   };
 
-    const handleAddEvent = async (e: FormEvent) => {
-  e.preventDefault();
+  
   setError(null);
 
   if (!selectedMachine) return setError("Välj en maskin först.");
