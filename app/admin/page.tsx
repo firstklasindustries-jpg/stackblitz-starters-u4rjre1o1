@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 type LeadStatus = "new" | "contacted" | "in_progress" | "won" | "lost";
 
@@ -24,81 +24,122 @@ const STATUS_LABELS: Record<LeadStatus, string> = {
   lost: "Ej aktuell",
 };
 
-export default function AdminPage() {
-  const [adminKey, setAdminKey] = useState("");
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+function StatusPill({ status }: { status: LeadStatus }) {
+  const cls =
+    status === "new"
+      ? "bg-blue-100 text-blue-800"
+      : status === "contacted"
+      ? "bg-amber-100 text-amber-800"
+      : status === "in_progress"
+      ? "bg-purple-100 text-purple-800"
+      : status === "won"
+      ? "bg-emerald-100 text-emerald-800"
+      : "bg-gray-200 text-gray-700";
 
-const fetchLeads = async () => {
-  try {
-    setLoading(true);
-    setError(null);
-
-const key = localStorage.getItem("ADMIN_KEY") || "";
-if (!key) {
-  setError("ADMIN_KEY saknas i din browser. Sätt den i DevTools.");
-  setLoading(false);
-  return;
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${cls}`}>
+      {STATUS_LABELS[status]}
+    </span>
+  );
 }
 
-const res = await fetch("/api/admin/leads", {
-  headers: { "x-admin-key": key },
-});
+export default function AdminPage() {
+  const [adminKey, setAdminKey] = useState<string>("");
+  const [savedKey, setSavedKey] = useState<string>("");
 
-    const text = await res.text();
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    let json: any;
+  const keyPresent = useMemo(() => (savedKey || "").length > 0, [savedKey]);
+
+  // Load key from localStorage once
+  useEffect(() => {
     try {
-      json = JSON.parse(text);
+      const k = localStorage.getItem("ADMIN_KEY") || "";
+      setSavedKey(k);
+      setAdminKey(k);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const saveKey = () => {
+    const k = adminKey.trim();
+    try {
+      localStorage.setItem("ADMIN_KEY", k);
+    } catch {
+      // ignore
+    }
+    setSavedKey(k);
+    setError(null);
+  };
+
+  const clearKey = () => {
+    try {
+      localStorage.removeItem("ADMIN_KEY");
+    } catch {
+      // ignore
+    }
+    setAdminKey("");
+    setSavedKey("");
+    setLeads([]);
+    setError("Admin key borttagen. Sätt nyckeln igen för att hämta leads.");
+  };
+
+  const safeReadJson = async (res: Response) => {
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
     } catch {
       throw new Error(
-        `Admin API svarade inte JSON. Status ${res.status}. Body: ${text.slice(0, 120)}`
+        `Admin API svarade inte JSON. Status ${res.status}. Body: ${text.slice(0, 160)}`
       );
-    }
-
-    if (!json.ok) throw new Error(json.error || "Kunde inte hämta leads.");
-
-    setLeads(json.leads || []);
-  } catch (err: any) {
-    console.error(err);
-    setError(err?.message || "Kunde inte hämta leads.");
-  } finally {
-    setLoading(false);
-  }
-};
-
-
-  const updateLeadStatus = async (id: string, status: LeadStatus) => {
-    try {
-      setUpdatingId(id);
-      setError(null);
-
-      const res = await fetch("/api/admin/leads/status", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(adminKey ? { "x-admin-key": adminKey } : {}),
-        },
-        body: JSON.stringify({ id, status }),
-      });
-
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || "Kunde inte uppdatera status.");
-
-      setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, status } : l)));
-    } catch (err: any) {
-      setError(err?.message || "Okänt fel vid status-uppdatering.");
-    } finally {
-      setUpdatingId(null);
     }
   };
 
+  const fetchLeads = async () => {
+    setFetching(true);
+    setError(null);
+
+    const key = (savedKey || "").trim();
+    if (!key) {
+      setError("ADMIN_KEY saknas. Fyll i nyckeln ovan och klicka Spara.");
+      setFetching(false);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/leads", {
+        headers: {
+          "x-admin-key": key,
+        },
+      });
+
+      const json = await safeReadJson(res);
+
+      if (!json.ok) {
+        throw new Error(json.error || "Kunde inte hämta leads.");
+      }
+
+      setLeads((json.leads || []) as Lead[]);
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message || "Kunde inte hämta leads.");
+      setLeads([]);
+    } finally {
+      setFetching(false);
+      setLoading(false);
+    }
+  };
+
+  // auto-fetch when we have a key
   useEffect(() => {
-    fetchLeads();
+    if (keyPresent) fetchLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [keyPresent]);
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 flex justify-center">
@@ -106,29 +147,75 @@ const res = await fetch("/api/admin/leads", {
         <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">Admin – Leads</h1>
-            <p className="text-sm text-gray-600">Hantera inkommande värderingsförfrågningar.</p>
+            <p className="text-sm text-gray-600">
+              Hämtar leads via <code>/api/admin/leads</code> (server + service role).
+            </p>
           </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={fetchLeads}
+              className="px-3 py-2 rounded bg-slate-900 text-white text-sm disabled:opacity-60"
+              disabled={fetching}
+            >
+              {fetching ? "Hämtar..." : "Uppdatera"}
+            </button>
+          </div>
+        </header>
+
+        {/* Admin key box */}
+        <section className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <h2 className="font-semibold mb-2">Admin key</h2>
+          <p className="text-xs text-gray-600 mb-3">
+            Nyckeln sparas i din browser (localStorage) och skickas som header{" "}
+            <code>x-admin-key</code>.
+          </p>
 
           <div className="flex flex-col md:flex-row gap-2 md:items-center">
             <input
               value={adminKey}
               onChange={(e) => setAdminKey(e.target.value)}
-              placeholder="ADMIN_KEY"
-              className="px-3 py-2 rounded border text-sm w-full md:w-[260px]"
+              placeholder="Klistra in ADMIN_KEY…"
+              className="flex-1 border rounded px-3 py-2 text-sm"
             />
             <button
-              onClick={fetchLeads}
-              className="px-3 py-2 rounded bg-slate-900 text-white text-sm"
+              type="button"
+              onClick={saveKey}
+              className="px-3 py-2 rounded border border-slate-300 bg-white text-sm"
             >
-              Uppdatera
+              Spara
+            </button>
+            <button
+              type="button"
+              onClick={clearKey}
+              className="px-3 py-2 rounded border border-slate-300 bg-white text-sm"
+            >
+              Rensa
             </button>
           </div>
-        </header>
 
-        {error && <p className="text-sm text-red-500">{error}</p>}
+          <div className="mt-2 text-xs text-gray-600">
+            Status:{" "}
+            {savedKey ? (
+              <span>
+                ✅ Sparad (prefix: <code>{savedKey.slice(0, 6)}</code>, längd:{" "}
+                {savedKey.length})
+              </span>
+            ) : (
+              <span>❌ Ingen nyckel sparad</span>
+            )}
+          </div>
+        </section>
 
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
+            {error}
+          </div>
+        )}
+
+        {/* Leads */}
         {loading ? (
-          <p>Laddar leads...</p>
+          <p>Laddar…</p>
         ) : leads.length === 0 ? (
           <p>Inga leads ännu.</p>
         ) : (
@@ -149,11 +236,13 @@ const res = await fetch("/api/admin/leads", {
                           ({lead.email || "ingen e-post"})
                         </span>
                       </p>
-
-                      {lead.phone && <p className="text-xs text-gray-600">Tel: {lead.phone}</p>}
-
+                      {lead.phone && (
+                        <p className="text-xs text-gray-600">Tel: {lead.phone}</p>
+                      )}
                       {lead.machine_type && (
-                        <p className="text-xs text-gray-600 mt-1">Maskintyp: {lead.machine_type}</p>
+                        <p className="text-xs text-gray-600 mt-1">
+                          Maskintyp: {lead.machine_type}
+                        </p>
                       )}
                     </div>
 
@@ -161,23 +250,10 @@ const res = await fetch("/api/admin/leads", {
                       <p className="text-[11px] text-gray-500">
                         {new Date(lead.created_at).toLocaleString()}
                       </p>
-                      <p className="text-[11px] text-gray-400">Källa: {lead.source || "-"}</p>
-
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                          status === "new"
-                            ? "bg-blue-100 text-blue-800"
-                            : status === "contacted"
-                            ? "bg-amber-100 text-amber-800"
-                            : status === "in_progress"
-                            ? "bg-purple-100 text-purple-800"
-                            : status === "won"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-gray-200 text-gray-700"
-                        }`}
-                      >
-                        {STATUS_LABELS[status]}
-                      </span>
+                      <p className="text-[11px] text-gray-400">
+                        Källa: {lead.source || "-"}
+                      </p>
+                      <StatusPill status={status} />
                     </div>
                   </div>
 
@@ -186,32 +262,18 @@ const res = await fetch("/api/admin/leads", {
                       {lead.message}
                     </p>
                   )}
-
-                  <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-2 mt-2">
-                    <p className="text-[11px] text-gray-500 mr-2">Uppdatera status:</p>
-                    {(Object.keys(STATUS_LABELS) as LeadStatus[]).map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => updateLeadStatus(lead.id, s)}
-                        disabled={updatingId === lead.id}
-                        className={`text-[11px] px-2 py-1 rounded border ${
-                          status === s
-                            ? "bg-slate-900 text-white border-slate-900"
-                            : "bg-white text-gray-700 border-slate-300"
-                        } disabled:opacity-60`}
-                      >
-                        {STATUS_LABELS[s]}
-                      </button>
-                    ))}
-                  </div>
                 </div>
               );
             })}
           </div>
         )}
+
+        <footer className="text-[11px] text-gray-500">
+          Tips: Vill du låsa hårdare sen kan vi byta admin-key till riktig Supabase Auth + RLS.
+        </footer>
       </div>
     </main>
   );
 }
+
 
