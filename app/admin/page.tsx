@@ -31,21 +31,18 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
- const fetchLeads = async () => {
+const fetchLeads = async () => {
   try {
     setLoading(true);
     setError(null);
 
+    const key = localStorage.getItem("ADMIN_KEY") || "";
+
     const res = await fetch("/api/admin/leads", {
       headers: {
-        // valfritt: om du skyddar med admin key (se route nedan)
-     const key = localStorage.getItem("ADMIN_KEY") || "";
-
-const res = await fetch("/api/admin/leads", {
-  headers: {
-    "x-admin-key": key,
-  },
-});
+        "x-admin-key": key,
+      },
+    });
 
     const text = await res.text();
 
