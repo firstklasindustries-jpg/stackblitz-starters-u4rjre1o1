@@ -31,8 +31,6 @@ if (req.headers.get("x-admin-debug") === "1") {
       );
     }
 
-    // ✅ define ONCE
-    const sentKey = req.headers.get("x-admin-key") || "";
 
     // ✅ debug mode (no auth required, only shows lengths/prefix)
     if (req.headers.get("x-admin-debug") === "1") {
