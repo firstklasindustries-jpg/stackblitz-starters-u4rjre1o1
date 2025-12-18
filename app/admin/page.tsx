@@ -31,26 +31,40 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const fetchLeads = async () => {
+ const fetchLeads = async () => {
+  try {
+    setLoading(true);
+    setError(null);
+
+    const res = await fetch("/api/admin/leads", {
+      headers: {
+        // valfritt: om du skyddar med admin key (se route nedan)
+        "x-admin-key": (localStorage.getItem("ADMIN_KEY") || ""),
+      },
+    });
+
+    const text = await res.text();
+
+    let json: any;
     try {
-      setLoading(true);
-      setError(null);
-
-      const res = await fetch("/api/admin/leads", {
-        headers: adminKey ? { "x-admin-key": adminKey } : {},
-      });
-
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || "Kunde inte hämta leads.");
-
-      setLeads((data.leads || []) as Lead[]);
-    } catch (err: any) {
-      setError(err?.message || "Okänt fel vid hämtning av leads.");
-      setLeads([]);
-    } finally {
-      setLoading(false);
+      json = JSON.parse(text);
+    } catch {
+      throw new Error(
+        `Admin API svarade inte JSON. Status ${res.status}. Body: ${text.slice(0, 120)}`
+      );
     }
-  };
+
+    if (!json.ok) throw new Error(json.error || "Kunde inte hämta leads.");
+
+    setLeads(json.leads || []);
+  } catch (err: any) {
+    console.error(err);
+    setError(err?.message || "Kunde inte hämta leads.");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const updateLeadStatus = async (id: string, status: LeadStatus) => {
     try {
