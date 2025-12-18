@@ -98,6 +98,15 @@ export default function Home() {
   const [estimateHigh, setEstimateHigh] = useState<string>("");
   const [estimateNote, setEstimateNote] = useState<string>("");
 
+  const [eventType, setEventType] = useState("service");
+const [eventDescription, setEventDescription] = useState("");
+const [savingEvent, setSavingEvent] = useState(false);
+
+const [verifying, setVerifying] = useState(false);
+const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
+const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
+
+
   // ---------- helpers ----------
   const toNumOrNull = (v: string) => {
     const n = Number(v);
