@@ -649,7 +649,7 @@ const handleVerifyChain = async () => {
                 Modell: {selectedMachine.model || "-"} • Serienr:{" "}
                 {selectedMachine.serial_number || "-"}
               </p>
-              {/* ADD EVENT + VERIFY */}
+ {/* ADD EVENT + VERIFY */}
 <div className="border rounded-lg p-3 bg-slate-50 mb-4">
   <h3 className="font-semibold mb-2">Lägg till händelse</h3>
 
