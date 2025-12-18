@@ -26,6 +26,20 @@ export async function GET(req: Request) {
       sentPrefix: sentKey.slice(0, 6),
     });
 
+    const sentKey = req.headers.get("x-admin-key") || "";
+
+if (req.headers.get("x-admin-debug") === "1") {
+  return NextResponse.json({
+    ok: true,
+    debug: {
+      hasEnvAdminKey: !!adminKey,
+      sentLen: sentKey.length,
+      sentPrefix: sentKey.slice(0, 6),
+    },
+  });
+}
+
+
     // ✅ MVP-skydd (om ADMIN_KEY är satt i env så krävs headern)
     if (adminKey && sentKey !== adminKey) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
