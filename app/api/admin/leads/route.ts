@@ -15,15 +15,18 @@ export async function GET(req: Request) {
         { status: 500 }
       );
     }
-const sentKey = req.headers.get("x-admin-key") || "";
-console.log("ADMIN LEADS AUTH", {
-  hasEnvAdminKey: !!adminKey,
-  sentLen: sentKey.length,
-  sentPrefix: sentKey.slice(0, 6),
-});
 
-    // (MVP-skydd) kräver x-admin-key header
+    // ✅ ONE sentKey only
     const sentKey = req.headers.get("x-admin-key") || "";
+
+    // ✅ debug (kan du ta bort sen)
+    console.log("ADMIN LEADS AUTH", {
+      hasEnvAdminKey: !!adminKey,
+      sentLen: sentKey.length,
+      sentPrefix: sentKey.slice(0, 6),
+    });
+
+    // ✅ MVP-skydd (om ADMIN_KEY är satt i env så krävs headern)
     if (adminKey && sentKey !== adminKey) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
@@ -41,10 +44,6 @@ console.log("ADMIN LEADS AUTH", {
 
     return NextResponse.json({ ok: true, leads: data ?? [] });
   } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
   }
 }
-
