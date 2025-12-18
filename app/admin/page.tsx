@@ -36,13 +36,16 @@ const fetchLeads = async () => {
     setLoading(true);
     setError(null);
 
-    const key = localStorage.getItem("ADMIN_KEY") || "";
+const key = localStorage.getItem("ADMIN_KEY") || "";
+if (!key) {
+  setError("ADMIN_KEY saknas i din browser. Sätt den i DevTools.");
+  setLoading(false);
+  return;
+}
 
-    const res = await fetch("/api/admin/leads", {
-      headers: {
-        "x-admin-key": key,
-      },
-    });
+const res = await fetch("/api/admin/leads", {
+  headers: { "x-admin-key": key },
+});
 
     const text = await res.text();
 
