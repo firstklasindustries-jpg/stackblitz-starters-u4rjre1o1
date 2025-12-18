@@ -109,6 +109,15 @@ export default function Home() {
   const [events, setEvents] = useState<MachineEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
 
+  const [eventType, setEventType] = useState("service");
+const [eventDescription, setEventDescription] = useState("");
+const [savingEvent, setSavingEvent] = useState(false);
+
+const [verifying, setVerifying] = useState(false);
+const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
+const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
+
+  
   // ---- add machine form ----
   const [mName, setMName] = useState("");
   const [mModel, setMModel] = useState("");
