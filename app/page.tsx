@@ -83,27 +83,6 @@ export default function Home() {
   </form>
 </div>
 
-<div className="flex items-center gap-3 mb-2">
-  <button
-    type="button"
-    onClick={handleVerifyChain}
-    disabled={verifying || !selectedMachine}
-    className="text-xs bg-emerald-600 text-white px-3 py-1 rounded disabled:opacity-60"
-  >
-    {verifying ? "Verifierar..." : "Verifiera kedja"}
-  </button>
-
-  {verifyMessage && (
-    <span
-      className={`text-xs ${
-        verifyOk === false ? "text-red-600" : verifyOk === true ? "text-emerald-700" : "text-gray-600"
-      }`}
-    >
-      {verifyMessage}
-    </span>
-  )}
-</div>
-
   
   // ---- events ----
   const [events, setEvents] = useState<MachineEvent[]>([]);
