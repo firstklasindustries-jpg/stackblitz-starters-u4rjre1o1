@@ -1,58 +1,44 @@
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-type LeadStatus = "new" | "contacted" | "in_progress" | "won" | "lost";
-
-function getAdminClient() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-
-  return createClient(url, key, { auth: { persistSession: false } });
-}
-
-function isValidStatus(s: any): s is LeadStatus {
-  return ["new", "contacted", "in_progress", "won", "lost"].includes(String(s));
-}
-
-export async function PATCH(req: Request) {
+export async function GET(req: Request) {
   try {
-    const adminKey = process.env.ADMIN_KEY;
-    if (adminKey) {
-      const provided = req.headers.get("x-admin-key");
-      if (provided !== adminKey) {
-        return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-      }
-    }
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const adminKey = process.env.ADMIN_KEY || "";
 
-    const supabase = getAdminClient();
-    if (!supabase) {
+    if (!url || !key) {
       return NextResponse.json(
         { ok: false, error: "Missing env: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" },
         { status: 500 }
       );
     }
 
-    const body = await req.json();
-    const id = String(body.id || "");
-    const status = body.status;
-
-    if (!id) {
-      return NextResponse.json({ ok: false, error: "Missing id" }, { status: 400 });
-    }
-    if (!isValidStatus(status)) {
-      return NextResponse.json({ ok: false, error: "Invalid status" }, { status: 400 });
+    // (MVP-skydd) kräver x-admin-key header
+    const sentKey = req.headers.get("x-admin-key") || "";
+    if (adminKey && sentKey !== adminKey) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const { error } = await supabase.from("leads").update({ status }).eq("id", id);
+    const supabase = createClient(url, key, { auth: { persistSession: false } });
+
+    const { data, error } = await supabase
+      .from("leads")
+      .select("id, name, email, phone, message, source, created_at, machine_type, status")
+      .order("created_at", { ascending: false });
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, leads: data ?? [] });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Server error" },
+      { status: 500 }
+    );
   }
 }
 
