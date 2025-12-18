@@ -6,46 +6,39 @@ import { createClient } from "@supabase/supabase-js";
 export async function GET(req: Request) {
   try {
     const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const adminKey = process.env.ADMIN_KEY || "";
 
-    if (!url || !key) {
+    if (!url || !serviceKey) {
       return NextResponse.json(
         { ok: false, error: "Missing env: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" },
         { status: 500 }
       );
     }
 
-    // ✅ ONE sentKey only
+    // ✅ define ONCE
     const sentKey = req.headers.get("x-admin-key") || "";
 
-    // ✅ debug (kan du ta bort sen)
-    console.log("ADMIN LEADS AUTH", {
-      hasEnvAdminKey: !!adminKey,
-      sentLen: sentKey.length,
-      sentPrefix: sentKey.slice(0, 6),
-    });
+    // ✅ debug mode (no auth required, only shows lengths/prefix)
+    if (req.headers.get("x-admin-debug") === "1") {
+      return NextResponse.json({
+        ok: true,
+        debug: {
+          hasEnvAdminKey: !!adminKey,
+          sentLen: sentKey.length,
+          sentPrefix: sentKey.slice(0, 6),
+        },
+      });
+    }
 
-    const sentKey = req.headers.get("x-admin-key") || "";
-
-if (req.headers.get("x-admin-debug") === "1") {
-  return NextResponse.json({
-    ok: true,
-    debug: {
-      hasEnvAdminKey: !!adminKey,
-      sentLen: sentKey.length,
-      sentPrefix: sentKey.slice(0, 6),
-    },
-  });
-}
-
-
-    // ✅ MVP-skydd (om ADMIN_KEY är satt i env så krävs headern)
+    // ✅ auth check
     if (adminKey && sentKey !== adminKey) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = createClient(url, key, { auth: { persistSession: false } });
+    const supabase = createClient(url, serviceKey, {
+      auth: { persistSession: false },
+    });
 
     const { data, error } = await supabase
       .from("leads")
@@ -61,3 +54,4 @@ if (req.headers.get("x-admin-debug") === "1") {
     return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
   }
 }
+
