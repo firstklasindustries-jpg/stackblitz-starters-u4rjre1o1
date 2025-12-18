@@ -470,6 +470,70 @@ const handleVerifyChain = async () => {
     }
   };
 
+    const handleAddEvent = async (e: FormEvent) => {
+  e.preventDefault();
+  setError(null);
+
+  if (!selectedMachine) return setError("Välj en maskin först.");
+  if (!eventDescription.trim()) return setError("Skriv en beskrivning för händelsen.");
+
+  setSavingEvent(true);
+  setVerifyMessage(null);
+  setVerifyOk(null);
+
+  try {
+    const res = await fetch("/api/machines/events/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        machine_id: selectedMachine.id,
+        event_type: eventType,
+        description: eventDescription.trim(),
+        data: null,
+      }),
+    });
+
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || "Kunde inte spara händelsen.");
+
+    setEventDescription("");
+    await fetchEvents(selectedMachine.id);
+  } catch (err: any) {
+    console.error(err);
+    setError(err?.message || "Kunde inte spara händelsen.");
+  } finally {
+    setSavingEvent(false);
+  }
+};
+
+const handleVerifyChain = async () => {
+  if (!selectedMachine) return setError("Välj en maskin först.");
+
+  setVerifying(true);
+  setVerifyMessage("Verifierar kedja...");
+  setVerifyOk(null);
+
+  try {
+    const res = await fetch(
+      `/api/machines/events/verify?machineId=${encodeURIComponent(selectedMachine.id)}`
+    );
+    const json = await res.json();
+
+    if (!json.ok) throw new Error(json.error || "Kunde inte verifiera kedjan.");
+
+    setVerifyOk(!!json.verified);
+    setVerifyMessage(json.message || (json.verified ? "Kedjan är intakt ✅" : "Kedjan är bruten ❌"));
+  } catch (err: any) {
+    console.error(err);
+    setVerifyOk(false);
+    setVerifyMessage(null);
+    setError(err?.message || "Kunde inte verifiera kedjan.");
+  } finally {
+    setVerifying(false);
+  }
+};
+
+    
   // ---------- UI ----------
   return (
     <main className="min-h-screen flex flex-col items-center p-6 gap-8 bg-slate-50">
