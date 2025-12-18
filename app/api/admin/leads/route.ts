@@ -9,6 +9,21 @@ export async function GET(req: Request) {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const adminKey = process.env.ADMIN_KEY || "";
 
+    const sentKey = req.headers.get("x-admin-key") || "";
+
+if (req.headers.get("x-admin-debug") === "1") {
+  return NextResponse.json({
+    ok: true,
+    debug: {
+      hasEnvAdminKey: !!adminKey,
+      envPrefix: adminKey ? adminKey.slice(0, 6) : null,
+      sentLen: sentKey.length,
+      sentPrefix: sentKey.slice(0, 6),
+    },
+  });
+}
+
+
     if (!url || !serviceKey) {
       return NextResponse.json(
         { ok: false, error: "Missing env: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" },
