@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useState,
-  FormEvent,
-  ChangeEvent,
-} from "react";
-import { supabase } from "../lib/supabaseClient";
+import React, { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Machine = {
   id: string;
@@ -28,764 +22,363 @@ type MachineEvent = {
   hash: string | null;
 };
 
-type Condition = {
-  condition_score: number;
-  condition_label: string;
-  notes: string;
-  risk_flags: string[];
+type MachineType = "wheel_loader" | "excavator";
+
+type LeadBase = {
+  name: string;
+  email: string;
+  phone?: string;
+  message?: string;
+
+  brand?: string;
+  model?: string;
+  year?: number | null;
+  hours?: number | null;
+  locationText?: string;
+
+  valueEstimate?: number | null;
+  conditionScore?: number | null;
 };
-
-type Valuation = {
-  estimated_value: number;
-  confidence: number;
-  comment: string | null;
-};
-
-// Helper för SHA-256-hash (blockchain-liknande kedja)
-async function computeHash(input: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(input);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-// Maskera serienummer för publik vy
-function maskSerial(serial?: string | null): string {
-  if (!serial) return "-";
-  if (serial.length <= 4) return "****";
-  const start = serial.slice(0, 2);
-  const end = serial.slice(-2);
-  return `${start}****${end}`;
-}
 
 export default function Home() {
-  // Maskin-state
-  const [machines, setMachines] = useState<Machine[]>([]);
-  const [loadingMachines, setLoadingMachines] = useState(true);
+  // ---- global UI ----
   const [error, setError] = useState<string | null>(null);
 
-  // Ny maskin-form
-  const [name, setName] = useState("");
-  const [model, setModel] = useState("");
-  const [serialNumber, setSerialNumber] = useState("");
-  const [year, setYear] = useState<string>("");
-  const [hours, setHours] = useState<string>("");
-  const [savingMachine, setSavingMachine] = useState(false);
+  // ---- machine type toggle for valuation lead ----
+  const [machineType, setMachineType] = useState<MachineType>("wheel_loader");
 
-  // Vald maskin
+  // ---- machines list ----
+  const [machines, setMachines] = useState<Machine[]>([]);
+  const [loadingMachines, setLoadingMachines] = useState(true);
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
+
+  // ---- events ----
   const [events, setEvents] = useState<MachineEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
 
-  // Ny händelse
-  const [eventType, setEventType] = useState("service");
-  const [eventDescription, setEventDescription] = useState("");
-  const [savingEvent, setSavingEvent] = useState(false);
+  // ---- add machine form ----
+  const [mName, setMName] = useState("");
+  const [mModel, setMModel] = useState("");
+  const [mSerial, setMSerial] = useState("");
+  const [mYear, setMYear] = useState<string>("");
+  const [mHours, setMHours] = useState<string>("");
+  const [savingMachine, setSavingMachine] = useState(false);
 
-  // Bilduppladdning för vald maskin
-  const [uploadingImage, setUploadingImage] = useState(false);
-
-  // Verifiering av hashkedja
-  const [verifying, setVerifying] = useState(false);
-  const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
-  const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
-
-  // Vy-läge (ägare / publik)
-  const [viewMode, setViewMode] = useState<"owner" | "public">("owner");
-
-  // AI-värdering
-  const [valuation, setValuation] = useState<Valuation | null>(null);
-  const [loadingValuation, setLoadingValuation] = useState(false);
-
-  // AI-skick
-  const [condition, setCondition] = useState<Condition | null>(null);
-  const [loadingCondition, setLoadingCondition] = useState(false);
-
-  // AI-first: bild för ny maskin
-  const [newMachineImageUrl, setNewMachineImageUrl] = useState<string | null>(
-    null
-  );
-  const [uploadingNewMachineImage, setUploadingNewMachineImage] =
-    useState(false);
-  const [loadingNewMachineAi, setLoadingNewMachineAi] = useState(false);
-
-  // Lead-form
+  // ---- lead form state ----
   const [leadSubmitting, setLeadSubmitting] = useState(false);
   const [leadSent, setLeadSent] = useState(false);
   const [leadError, setLeadError] = useState<string | null>(null);
 
- // Hämta maskiner (via server-API)
-const fetchMachines = async () => {
-  setLoadingMachines(true);
-  setError(null);
+  // lead basics
+  const [leadName, setLeadName] = useState("");
+  const [leadEmail, setLeadEmail] = useState("");
+  const [leadPhone, setLeadPhone] = useState("");
+  const [leadMessage, setLeadMessage] = useState("");
 
-  try {
-    const res = await fetch("/api/machines");
-    const json = await res.json();
+  // common machine fields
+  const [brand, setBrand] = useState("");
+  const [model, setModel] = useState("");
+  const [year, setYear] = useState<string>("");
+  const [hours, setHours] = useState<string>("");
+  const [locationText, setLocationText] = useState("");
+  const [valueEstimate, setValueEstimate] = useState<string>("");
+  const [conditionScore, setConditionScore] = useState<string>("");
 
-    if (!json.ok) {
-      throw new Error(json.error || "Kunde inte hämta maskiner.");
+  // excavator extras
+  const [exWeightClass, setExWeightClass] = useState<string>(""); // e.g. 14t
+  const [exUndercarriage, setExUndercarriage] = useState<string>(""); // e.g. 60%
+  const [exTracksType, setExTracksType] = useState<string>("steel"); // steel/rubber
+  const [exQuickCoupler, setExQuickCoupler] = useState<boolean>(true);
+  const [exRototilt, setExRototilt] = useState<boolean>(false);
+  const [exBucketSize, setExBucketSize] = useState<string>(""); // liters
+  const [exExtraHydraulics, setExExtraHydraulics] = useState<boolean>(false);
+
+  // excavator estimate range (optional)
+  const [estimateLow, setEstimateLow] = useState<string>("");
+  const [estimateHigh, setEstimateHigh] = useState<string>("");
+  const [estimateNote, setEstimateNote] = useState<string>("");
+
+  // ---------- helpers ----------
+  const toNumOrNull = (v: string) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  // ---------- API: machines ----------
+  const fetchMachines = async () => {
+    setLoadingMachines(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/machines");
+      const json = await res.json();
+
+      if (!json.ok) throw new Error(json.error || "Kunde inte hämta maskiner.");
+      setMachines((json.machines || []) as Machine[]);
+    } catch (e: any) {
+      console.error(e);
+      setError("Kunde inte hämta maskiner.");
+    } finally {
+      setLoadingMachines(false);
     }
+  };
 
-    setMachines((json.machines || []) as Machine[]);
-  } catch (err: any) {
-    console.error(err);
-    setError("Kunde inte hämta maskiner.");
-  } finally {
-    setLoadingMachines(false);
-  }
-};
+  const fetchEvents = async (machineId: string) => {
+    setLoadingEvents(true);
+    setError(null);
 
- // Hämta events för maskin (via server-API)
-const fetchEvents = async (machineId: string) => {
-  setLoadingEvents(true);
-
-  try {
-    const res = await fetch(`/api/machines/events?machineId=${encodeURIComponent(machineId)}`);
-    const json = await res.json();
-
-    if (!json.ok) {
-      throw new Error(json.error || "Kunde inte hämta historik.");
+    try {
+      const res = await fetch(
+        `/api/machines/events?machineId=${encodeURIComponent(machineId)}`
+      );
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Kunde inte hämta historik.");
+      setEvents((json.events || []) as MachineEvent[]);
+    } catch (e: any) {
+      console.error(e);
+      setError("Kunde inte hämta historik.");
+    } finally {
+      setLoadingEvents(false);
     }
-
-    setEvents((json.events || []) as MachineEvent[]);
-  } catch (err: any) {
-    console.error(err);
-    setError("Kunde inte hämta historik.");
-  } finally {
-    setLoadingEvents(false);
-  }
-};
+  };
 
   useEffect(() => {
     fetchMachines();
   }, []);
 
-  // När man klickar på maskin
   const handleSelectMachine = (m: Machine) => {
     setSelectedMachine(m);
     setEvents([]);
-    setVerifyMessage(null);
-    setVerifyOk(null);
-    setValuation(null);
-    setCondition(null);
     fetchEvents(m.id);
   };
 
-  // Spara ny maskin
- const handleAddMachine = async (e: FormEvent) => {
-  e.preventDefault();
-  setError(null);
-
-  if (!name || !model || !serialNumber) {
-    setError("Fyll i namn, modell och serienummer.");
-    return;
-  }
-
-  setSavingMachine(true);
-
-  try {
-    const res = await fetch("/api/machines/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name,
-        model,
-        serial_number: serialNumber,
-        year: year ? parseInt(year, 10) : null,
-        hours: hours ? parseInt(hours, 10) : null,
-      }),
-    });
-
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error || "Kunde inte spara maskin.");
-
-    await fetchMachines();
-  } catch (e: any) {
-    console.error(e);
-    setError(e?.message || "Kunde inte spara maskin.");
-  } finally {
-    setSavingMachine(false);
-  }
-};
-
-
-  // Spara händelse med hashkedja
-  const handleAddEvent = async (e: FormEvent) => {
+  const handleAddMachine = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (!selectedMachine) {
-      setError("Välj en maskin först.");
+    if (!mName || !mModel || !mSerial) {
+      setError("Fyll i namn, modell och serienummer.");
       return;
     }
 
-    if (!eventDescription) {
-      setError("Skriv en beskrivning för händelsen.");
-      return;
+    setSavingMachine(true);
+
+    try {
+      const res = await fetch("/api/machines/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: mName,
+          model: mModel,
+          serial_number: mSerial,
+          year: mYear ? Number(mYear) : null,
+          hours: mHours ? Number(mHours) : null,
+        }),
+      });
+
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Kunde inte spara maskin.");
+
+      // refresh list
+      await fetchMachines();
+
+      // reset form
+      setMName("");
+      setMModel("");
+      setMSerial("");
+      setMYear("");
+      setMHours("");
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message || "Kunde inte spara maskin.");
+    } finally {
+      setSavingMachine(false);
     }
+  };
 
-    setSavingEvent(true);
-    setVerifyMessage(null);
-    setVerifyOk(null);
+  // ---------- Lead payload ----------
+  const leadPayload = useMemo(() => {
+    const base: LeadBase = {
+      name: leadName.trim(),
+      email: leadEmail.trim(),
+      phone: leadPhone.trim() || undefined,
+      message: leadMessage.trim() || undefined,
 
-    const { data: lastEvents, error: lastError } = await supabase
-      .from("machine_events")
-      .select("hash")
-      .eq("machine_id", selectedMachine.id)
-      .order("created_at", { ascending: false })
-      .limit(1);
+      brand: brand.trim() || undefined,
+      model: model.trim() || undefined,
+      year: year ? toNumOrNull(year) : null,
+      hours: hours ? toNumOrNull(hours) : null,
+      locationText: locationText.trim() || undefined,
 
-    if (lastError) {
-      console.error(lastError);
-    }
-
-    const previousHash =
-      lastEvents && lastEvents.length > 0 ? lastEvents[0].hash : null;
-
-    const payload = {
-      machine_id: selectedMachine.id,
-      event_type: eventType,
-      description: eventDescription,
-      data: null,
-      previous_hash: previousHash,
+      valueEstimate: valueEstimate ? toNumOrNull(valueEstimate) : null,
+      conditionScore: conditionScore ? toNumOrNull(conditionScore) : null,
     };
 
-    const hash = await computeHash(JSON.stringify(payload));
-
-    const { error } = await supabase.from("machine_events").insert([
-      {
-        ...payload,
-        hash,
-      },
-    ]);
-
-    if (error) {
-      console.error(error);
-      setError("Kunde inte spara händelsen.");
-    } else {
-      setEventDescription("");
-      await fetchEvents(selectedMachine.id);
-    }
-
-    setSavingEvent(false);
-  };
-
-  // Verifiera kedja
-  const handleVerifyChain = async () => {
-    if (!selectedMachine) {
-      setError("Välj en maskin först.");
-      return;
-    }
-
-    setVerifying(true);
-    setVerifyMessage("Verifierar kedja...");
-    setVerifyOk(null);
-
-    const { data, error } = await supabase
-      .from("machine_events")
-      .select("id, event_type, description, created_at, previous_hash, hash")
-      .eq("machine_id", selectedMachine.id)
-      .order("created_at", { ascending: true });
-
-    if (error) {
-      console.error(error);
-      setError("Kunde inte läsa historik för verifiering.");
-      setVerifying(false);
-      return;
-    }
-
-    const list = (data || []) as MachineEvent[];
-    let prevHash: string | null = null;
-
-    for (const ev of list) {
-      if (ev.previous_hash !== prevHash) {
-        setVerifyOk(false);
-        setVerifyMessage(
-          "Kedjan är bruten vid en händelse (id: " +
-            ev.id.slice(0, 8) +
-            "…)."
-        );
-        setVerifying(false);
-        return;
-      }
-
-      const payload = {
-        machine_id: selectedMachine.id,
-        event_type: ev.event_type,
-        description: ev.description,
-        data: null,
-        previous_hash: prevHash,
+    // machine_payload differs per type
+    if (machineType === "wheel_loader") {
+      return {
+        ...base,
+        machine_type: "wheel_loader",
+        machine_payload: {
+          // keep it simple + expandable
+          notes: "wheel_loader_form",
+        },
       };
-
-      const expectedHash = await computeHash(JSON.stringify(payload));
-
-      if (ev.hash !== expectedHash) {
-        setVerifyOk(false);
-        setVerifyMessage(
-          "Kedjan är manipulerad vid en händelse (id: " +
-            ev.id.slice(0, 8) +
-            "…)."
-        );
-        setVerifying(false);
-        return;
-      }
-
-      prevHash = ev.hash;
     }
 
-    setVerifyOk(true);
-    setVerifyMessage("Kedjan är intakt ✅");
-    setVerifying(false);
-  };
+    // excavator
+    return {
+      ...base,
+      machine_type: "excavator",
+      machine_payload: {
+        weight_class: exWeightClass || null,
+        undercarriage_percent: exUndercarriage || null,
+        tracks_type: exTracksType || null,
+        quick_coupler: exQuickCoupler,
+        rototilt: exRototilt,
+        bucket_size_liters: exBucketSize ? toNumOrNull(exBucketSize) : null,
+        extra_hydraulics: exExtraHydraulics,
+      },
+      estimate_low: estimateLow ? toNumOrNull(estimateLow) : null,
+      estimate_high: estimateHigh ? toNumOrNull(estimateHigh) : null,
+      estimate_note: estimateNote.trim() || null,
+    };
+  }, [
+    machineType,
+    leadName,
+    leadEmail,
+    leadPhone,
+    leadMessage,
+    brand,
+    model,
+    year,
+    hours,
+    locationText,
+    valueEstimate,
+    conditionScore,
+    exWeightClass,
+    exUndercarriage,
+    exTracksType,
+    exQuickCoupler,
+    exRototilt,
+    exBucketSize,
+    exExtraHydraulics,
+    estimateLow,
+    estimateHigh,
+    estimateNote,
+  ]);
 
-  // Bilduppladdning – vald maskin
-  const handleImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    if (!selectedMachine) {
-      setError("Välj en maskin först.");
-      return;
-    }
-
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadingImage(true);
-    setError(null);
-
-    try {
-      const filePath = `${selectedMachine.id}/${Date.now()}-${file.name}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("machine-images")
-        .upload(filePath, file);
-
-      if (uploadError) {
-        console.error(uploadError);
-        setError("Kunde inte ladda upp bild: " + uploadError.message);
-        setUploadingImage(false);
-        return;
-      }
-
-      const { data } = supabase.storage
-        .from("machine-images")
-        .getPublicUrl(filePath);
-
-      const publicUrl = data.publicUrl;
-
-      const { error: updateError } = await supabase
-        .from("machines")
-        .update({ image_url: publicUrl })
-        .eq("id", selectedMachine.id);
-
-      if (updateError) {
-        console.error(updateError);
-        setError("Kunde inte spara bild-URL på maskinen.");
-      } else {
-        setSelectedMachine((prev) =>
-          prev ? { ...prev, image_url: publicUrl } : prev
-        );
-        fetchMachines();
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Något gick fel vid bilduppladdning.");
-    }
-
-    setUploadingImage(false);
-  };
-
-  // Bilduppladdning – ny maskin (AI-first)
-  const handleNewMachineImageChange = async (
-    e: ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setError(null);
-    setUploadingNewMachineImage(true);
-
-    try {
-      const filePath = `new/${Date.now()}-${file.name}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("machine-images")
-        .upload(filePath, file);
-
-      if (uploadError) {
-        console.error(uploadError);
-        setError("Kunde inte ladda upp bild för ny maskin.");
-        setUploadingNewMachineImage(false);
-        return;
-      }
-
-      const { data: publicData } = supabase.storage
-        .from("machine-images")
-        .getPublicUrl(filePath);
-
-      const publicUrl = publicData.publicUrl;
-      setNewMachineImageUrl(publicUrl);
-    } catch (err) {
-      console.error(err);
-      setError("Något gick fel vid bilduppladdning för ny maskin.");
-    }
-
-    setUploadingNewMachineImage(false);
-  };
-
-  // AI-first: läs modell/serienr från bild för NY maskin
-  const handleNewMachineAi = async () => {
-    if (!newMachineImageUrl) {
-      setError("Ladda upp en bild på maskinen först.");
-      return;
-    }
-
-    setError(null);
-    setLoadingNewMachineAi(true);
-
-    try {
-      const res = await fetch("/api/ai-scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageUrl: newMachineImageUrl,
-        }),
-      });
-
-      const text = await res.text();
-      let data: any;
-
-      try {
-        data = JSON.parse(text);
-      } catch {
-        console.error("AI gav inte JSON:", text);
-        setError("AI-backend gav inte JSON när vi läste ny maskin.");
-        setLoadingNewMachineAi(false);
-        return;
-      }
-
-      if (!res.ok) {
-        console.error(data);
-        setError("AI-fel: " + (data.error || "okänt fel vid ny maskin."));
-        setLoadingNewMachineAi(false);
-        return;
-      }
-
-      const modelFromAi = data.model || "";
-      const serialFromAi = data.serial || "";
-
-      if (modelFromAi) {
-        setModel(modelFromAi);
-        if (!name) {
-          setName(modelFromAi);
-        }
-      }
-      if (serialFromAi) {
-        setSerialNumber(serialFromAi);
-      }
-
-      setLoadingNewMachineAi(false);
-    } catch (err: any) {
-      console.error(err);
-      setError(
-        "Kunde inte kontakta AI-backend för ny maskin: " + err?.message
-      );
-      setLoadingNewMachineAi(false);
-    }
-  };
-
-  // AI-värdering
-  const handleValuation = async () => {
-    if (!selectedMachine) {
-      setError("Välj en maskin först.");
-      return;
-    }
-
-    setError(null);
-    setLoadingValuation(true);
-    setValuation(null);
-
-    try {
-      const res = await fetch("/api/valuation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          machineId: selectedMachine.id,
-          model: selectedMachine.model,
-          year: selectedMachine.year,
-          hours: selectedMachine.hours,
-          conditionScore: condition?.condition_score ?? null,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        console.error(data);
-        setError(
-          "Kunde inte beräkna värde: " + (data.error || "okänt fel")
-        );
-        setLoadingValuation(false);
-        return;
-      }
-
-      setValuation({
-        estimated_value: data.estimated_value,
-        confidence: data.confidence,
-        comment: data.comment ?? null,
-      });
-      setLoadingValuation(false);
-    } catch (err: any) {
-      console.error(err);
-      setError("Värderingsfel: " + (err?.message || "något gick fel"));
-      setLoadingValuation(false);
-    }
-  };
-
-  // AI-bedöm skick
-  const handleCondition = async () => {
-    if (!selectedMachine?.image_url) {
-      setError("Ladda upp en bild på maskinen först.");
-      return;
-    }
-
-    setError(null);
-    setLoadingCondition(true);
-    setCondition(null);
-
-    try {
-      const res = await fetch("/api/condition", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageUrl: selectedMachine.image_url,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        console.error(data);
-        setError(
-          "Kunde inte bedöma skick: " + (data.error || "okänt fel")
-        );
-        setLoadingCondition(false);
-        return;
-      }
-
-      setCondition({
-        condition_score: data.condition_score,
-        condition_label: data.condition_label,
-        notes: data.notes,
-        risk_flags: data.risk_flags ?? [],
-      });
-      setLoadingCondition(false);
-    } catch (err: any) {
-      console.error(err);
-      setError(
-        "AI-skickbedömning misslyckades: " +
-          (err?.message || "okänt fel")
-      );
-      setLoadingCondition(false);
-    }
-  };
-
-  // Lead-form – direkt till Supabase
-  const handleLeadSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  // ---------- Lead submit (ONLY via /api/lead) ----------
+  const handleLeadSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLeadSubmitting(true);
     setLeadSent(false);
     setLeadError(null);
 
-    const form = e.currentTarget;
-
     try {
-      const formData = new FormData(form);
-
-      const name = String(formData.get("name") || "");
-      const email = String(formData.get("email") || "");
-      const phone = String(formData.get("phone") || "");
-      const message = String(formData.get("message") || "");
-
-      const brand = String(formData.get("brand") || "");
-      const formModel = String(formData.get("model") || "");
-      const year = formData.get("year")
-        ? Number(formData.get("year"))
-        : null;
-      const hours = formData.get("operating_hours")
-        ? Number(formData.get("operating_hours"))
-        : null;
-      const locationText = String(formData.get("location_text") || "");
-      const valueEstimate = formData.get("value_estimate")
-        ? Number(formData.get("value_estimate"))
-        : null;
-      const conditionScore = formData.get("condition_score")
-        ? Number(formData.get("condition_score"))
-        : null;
-
-      const machineInfo = [
-        brand && `Brand: ${brand}`,
-        formModel && `Model: ${formModel}`,
-        typeof year === "number" && `Årsmodell: ${year}`,
-        typeof hours === "number" && `Timmar: ${hours}`,
-        locationText && `Plats: ${locationText}`,
-        typeof valueEstimate === "number" &&
-          `Uppskattat värde: ${valueEstimate} NOK`,
-        typeof conditionScore === "number" &&
-          `Skick (1–5): ${conditionScore}`,
-      ]
-        .filter(Boolean)
-        .join(" | ");
-
-      const fullMessage =
-        message.trim().length > 0
-          ? `${message}\n\n---\n${machineInfo}`
-          : machineInfo || "";
-
-      const { data, error } = await supabase
-        .from("leads")
-        .insert({
-          name,
-          email,
-          phone: phone || null,
-          message: fullMessage || null,
-          source: "valuation_form",
-        })
-        .select("id, created_at")
-        .maybeSingle();
-
-      if (error) {
-        console.error("Lead insert error:", error);
-        setLeadError(
-          "Supabase-fel: " + (error.message || "okänt fel vid insert.")
-        );
-        setLeadSubmitting(false);
-        return;
+      if (!leadPayload.email) {
+        throw new Error("E-post krävs.");
       }
 
-      console.log("Lead sparad:", data);
+      const res = await fetch("/api/lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(leadPayload),
+      });
+
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Kunde inte skicka förfrågan.");
 
       setLeadSent(true);
-      setLeadError(null);
-      form.reset();
-    } catch (err: any) {
-      console.error("Oväntat client-fel i handleLeadSubmit:", err);
-      setLeadError(
-        "Client-fel: " + (err?.message || "okänt fel i inskick.")
-      );
+
+      // reset only the lead contact + message (keep machineType selection)
+      setLeadName("");
+      setLeadEmail("");
+      setLeadPhone("");
+      setLeadMessage("");
+
+      // optional reset machine fields
+      setBrand("");
+      setModel("");
+      setYear("");
+      setHours("");
+      setLocationText("");
+      setValueEstimate("");
+      setConditionScore("");
+
+      // excavator optional reset
+      setExWeightClass("");
+      setExUndercarriage("");
+      setExTracksType("steel");
+      setExQuickCoupler(true);
+      setExRototilt(false);
+      setExBucketSize("");
+      setExExtraHydraulics(false);
+      setEstimateLow("");
+      setEstimateHigh("");
+      setEstimateNote("");
+    } catch (e: any) {
+      console.error(e);
+      setLeadError(e?.message || "Kunde inte skicka förfrågan.");
     } finally {
       setLeadSubmitting(false);
     }
   };
 
-  const isOwnerView = viewMode === "owner";
-
-  const shownSerial =
-    selectedMachine
-      ? isOwnerView
-        ? selectedMachine.serial_number || "-"
-        : maskSerial(selectedMachine.serial_number)
-      : "-";
-
+  // ---------- UI ----------
   return (
     <main className="min-h-screen flex flex-col items-center p-6 gap-8 bg-slate-50">
-      {/* HERO */}
-      <h1 className="text-3xl font-bold text-center">
-        Få koll på din maskins värde &amp; historik – på ett ställe
-      </h1>
-      <p className="text-sm text-gray-600 mb-2 text-center max-w-xl">
-        Arctic Trace samlar maskindata, servicehistorik, bilder,
-        hash-kedjad historik och AI-värdering. Perfekt när du ska sälja,
-        köpa eller bara ha kontroll.
-      </p>
+      <header className="w-full max-w-5xl">
+        <h1 className="text-3xl font-bold text-center">
+          Arctic Trace – MVP
+        </h1>
+        <p className="text-sm text-gray-600 mt-2 text-center">
+          Maskiner, historik och värderings-leads. Allt på samma sida. ✅
+        </p>
+      </header>
 
-      {error && (
-        <p className="text-sm text-red-500">{error}</p>
-      )}
+      {error && <p className="text-sm text-red-500">{error}</p>}
 
-      {/* MASKIN-DELEN */}
+      {/* MACHINES */}
       <section className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Vänster: Lägg till + lista maskiner */}
+        {/* Left */}
         <div className="bg-white shadow-md rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-3">Lägg till maskin</h2>
 
-          {/* Steg 1: AI-first bild */}
-          <div className="mb-4">
-            <p className="text-sm font-semibold mb-1">
-              1. Ladda upp bild (typskylt / maskin)
-            </p>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleNewMachineImageChange}
-              className="text-sm"
-            />
-            {uploadingNewMachineImage && (
-              <p className="text-xs text-gray-500 mt-1">
-                Laddar upp bild...
-              </p>
-            )}
-            {newMachineImageUrl && (
-              <p className="text-xs text-emerald-600 mt-1">
-                Bild uppladdad – redo för AI.
-              </p>
-            )}
-
-            <button
-              type="button"
-              onClick={handleNewMachineAi}
-              disabled={loadingNewMachineAi || !newMachineImageUrl}
-              className="mt-2 text-xs bg-purple-600 text-white px-3 py-1 rounded disabled:opacity-60"
-            >
-              {loadingNewMachineAi
-                ? "Läser av med AI..."
-                : "🔍 AI: fyll i modell & serienr från bild"}
-            </button>
-          </div>
-
-          {/* Steg 2: Formulär */}
-          <form
-            onSubmit={handleAddMachine}
-            className="flex flex-col gap-3 mb-6"
-          >
-            <p className="text-sm font-semibold">
-              2. Kontrollera & komplettera
-            </p>
-
+          <form onSubmit={handleAddMachine} className="flex flex-col gap-3 mb-6">
             <input
               type="text"
-              placeholder="Namn (t.ex. Cat 966 hjullastare)"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              placeholder="Namn (t.ex. Cat 966)"
+              value={mName}
+              onChange={(e) => setMName(e.target.value)}
               className="border rounded-md px-3 py-2"
             />
             <input
               type="text"
               placeholder="Modell"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
+              value={mModel}
+              onChange={(e) => setMModel(e.target.value)}
               className="border rounded-md px-3 py-2"
             />
             <input
               type="text"
               placeholder="Serienummer"
-              value={serialNumber}
-              onChange={(e) => setSerialNumber(e.target.value)}
+              value={mSerial}
+              onChange={(e) => setMSerial(e.target.value)}
               className="border rounded-md px-3 py-2"
             />
             <input
               type="number"
-              placeholder="Årsmodell (t.ex. 2018)"
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
+              placeholder="Årsmodell"
+              value={mYear}
+              onChange={(e) => setMYear(e.target.value)}
               className="border rounded-md px-3 py-2"
             />
             <input
               type="number"
-              placeholder="Timmar (t.ex. 6200)"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
+              placeholder="Timmar"
+              value={mHours}
+              onChange={(e) => setMHours(e.target.value)}
               className="border rounded-md px-3 py-2"
             />
 
@@ -798,11 +391,21 @@ const fetchEvents = async (machineId: string) => {
             </button>
           </form>
 
-          <h2 className="text-xl font-semibold mb-3">Dina maskiner</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xl font-semibold">Dina maskiner</h2>
+            <button
+              type="button"
+              onClick={fetchMachines}
+              className="text-xs px-3 py-1 rounded border border-slate-300"
+            >
+              Uppdatera
+            </button>
+          </div>
+
           {loadingMachines ? (
             <p>Laddar maskiner...</p>
           ) : machines.length === 0 ? (
-            <p>Inga maskiner ännu. Lägg till din första ovanför.</p>
+            <p>Inga maskiner ännu.</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {machines.map((m) => (
@@ -810,15 +413,13 @@ const fetchEvents = async (machineId: string) => {
                   key={m.id}
                   onClick={() => handleSelectMachine(m)}
                   className={`bg-white border rounded-lg p-3 shadow-sm cursor-pointer ${
-                    selectedMachine?.id === m.id
-                      ? "border-blue-500"
-                      : "border-slate-200"
+                    selectedMachine?.id === m.id ? "border-blue-500" : "border-slate-200"
                   }`}
                 >
-                  <p className="font-semibold">{m.name}</p>
+                  <p className="font-semibold">{m.name || "(utan namn)"}</p>
                   <p className="text-sm text-gray-600">
                     Modell: {m.model || "-"} • År: {m.year || "-"} • Timmar:{" "}
-                    {m.hours ?? "-"} • Serienr: {m.serial_number || "-"}
+                    {m.hours ?? "-"}
                   </p>
                 </li>
               ))}
@@ -826,403 +427,374 @@ const fetchEvents = async (machineId: string) => {
           )}
         </div>
 
-        {/* Höger: Maskinpass */}
+        {/* Right */}
         <div className="bg-white shadow-md rounded-xl p-6">
           {!selectedMachine ? (
-            <p>
-              Välj en maskin i listan till vänster för att se maskinpass,
-              bild, historik, hash-kedja – som ägare eller i publik vy.
-            </p>
+            <p>Välj en maskin till vänster för att se historik.</p>
           ) : (
             <>
-              {/* Vy-väljare */}
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-xl font-semibold">
-                  Maskinpass: {selectedMachine.name}
-                </h2>
-                <div className="flex gap-2 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("owner")}
-                    className={`px-3 py-1 rounded-full border ${
-                      isOwnerView
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "bg-white text-gray-700 border-gray-300"
-                    }`}
-                  >
-                    Ägarvy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("public")}
-                    className={`px-3 py-1 rounded-full border ${
-                      !isOwnerView
-                        ? "bg-emerald-600 text-white border-emerald-600"
-                        : "bg-white text-gray-700 border-gray-300"
-                    }`}
-                  >
-                    Publik vy
-                  </button>
-                </div>
-              </div>
-
-              <p className="text-gray-600 mb-2">
+              <h2 className="text-xl font-semibold mb-2">
+                Maskinpass: {selectedMachine.name}
+              </h2>
+              <p className="text-sm text-gray-600 mb-4">
                 Modell: {selectedMachine.model || "-"} • Serienr:{" "}
-                {shownSerial}
+                {selectedMachine.serial_number || "-"}
               </p>
 
-              {/* AI-värdering & skick – bara i ägarvy */}
-              {isOwnerView && (
-                <div className="mb-4 space-y-2">
-                  <button
-                    type="button"
-                    onClick={handleValuation}
-                    disabled={loadingValuation}
-                    className="text-xs bg-slate-900 text-white px-3 py-1 rounded disabled:opacity-60"
-                  >
-                    {loadingValuation
-                      ? "Beräknar värde..."
-                      : "🧮 Beräkna marknadsvärde"}
-                  </button>
-
-                  {valuation && (
-                    <div className="border rounded-lg p-3 bg-amber-50">
-                      <p className="text-sm font-semibold">
-                        Beräknat värde:{" "}
-                        <span className="text-amber-900">
-                          {valuation.estimated_value.toLocaleString("sv-SE")} kr
-                        </span>
-                      </p>
-                      <p className="text-xs text-gray-600">
-                        Tillförlitlighet: {valuation.confidence} %
-                      </p>
-                      {valuation.comment && (
-                        <p className="text-xs text-gray-700 mt-1">
-                          {valuation.comment}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={handleCondition}
-                    disabled={loadingCondition}
-                    className="text-xs bg-emerald-700 text-white px-3 py-1 rounded disabled:opacity-60"
-                  >
-                    {loadingCondition
-                      ? "AI bedömer skick..."
-                      : "🧠 AI-bedöm skick från bild"}
-                  </button>
-
-                  {condition && (
-                    <div className="border rounded-lg p-3 bg-emerald-50">
-                      <p className="text-sm font-semibold">
-                        Skick: {condition.condition_label} (
-                        {condition.condition_score}/5)
-                      </p>
-                      {condition.notes && (
-                        <p className="text-xs text-gray-700 mt-1">
-                          {condition.notes}
-                        </p>
-                      )}
-                      {condition.risk_flags &&
-                        condition.risk_flags.length > 0 && (
-                          <p className="text-[11px] text-red-700 mt-1">
-                            Risker: {condition.risk_flags.join(", ")}
-                          </p>
-                        )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Bildvisning */}
-              {selectedMachine.image_url ? (
-                <div className="mb-4">
-                  <p className="text-sm text-gray-500 mb-1">Bild:</p>
-                  <img
-                    src={selectedMachine.image_url}
-                    alt={selectedMachine.name || "Maskinbild"}
-                    className="w-full max-h-64 object-cover rounded-lg border"
-                  />
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500 mb-2">
-                  Ingen bild uppladdad ännu.
-                </p>
-              )}
-
-              {/* Bilduppladdning för vald maskin */}
-              {isOwnerView && (
-                <div className="mb-4">
-                  <p className="text-sm font-semibold mb-1">
-                    Ladda upp bild
-                  </p>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="text-sm"
-                  />
-                  {uploadingImage && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Laddar upp bild...
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Lägg till händelse */}
-              <div className="mb-6">
-                <h3 className="font-semibold mb-2">Lägg till händelse</h3>
-                <form
-                  onSubmit={handleAddEvent}
-                  className="flex flex-col gap-3"
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold">Historik</h3>
+                <button
+                  type="button"
+                  onClick={() => fetchEvents(selectedMachine.id)}
+                  className="text-xs px-3 py-1 rounded border border-slate-300"
+                  disabled={loadingEvents}
                 >
-                  <select
-                    value={eventType}
-                    onChange={(e) => setEventType(e.target.value)}
-                    className="border rounded px-3 py-2"
-                  >
-                    <option value="service">Service</option>
-                    <option value="owner_change">Ägarbyte</option>
-                    <option value="note">Notering</option>
-                  </select>
-
-                  <textarea
-                    placeholder="Beskrivning..."
-                    value={eventDescription}
-                    onChange={(e) =>
-                      setEventDescription(e.target.value)
-                    }
-                    className="border rounded px-3 py-2"
-                  />
-
-                  <button
-                    type="submit"
-                    disabled={savingEvent}
-                    className="bg-blue-600 text-white rounded-md py-2 font-semibold disabled:opacity-60"
-                  >
-                    {savingEvent ? "Sparar..." : "Spara händelse"}
-                  </button>
-                </form>
+                  {loadingEvents ? "Laddar..." : "Uppdatera"}
+                </button>
               </div>
 
-              {/* Historik */}
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <h3 className="font-semibold">Historik (kedjad)</h3>
-                  <button
-                    onClick={handleVerifyChain}
-                    disabled={verifying || events.length === 0}
-                    className="text-xs bg-emerald-600 text-white px-3 py-1 rounded disabled:opacity-60"
-                  >
-                    {verifying ? "Verifierar..." : "Verifiera kedja"}
-                  </button>
-                </div>
-                {verifyMessage && (
-                  <p
-                    className={`text-xs mb-2 ${
-                      verifyOk === false
-                        ? "text-red-500"
-                        : verifyOk === true
-                        ? "text-green-600"
-                        : "text-gray-600"
-                    }`}
-                  >
-                    {verifyMessage}
-                  </p>
-                )}
-
-                {loadingEvents ? (
-                  <p>Laddar historik...</p>
-                ) : events.length === 0 ? (
-                  <p>Inga händelser ännu.</p>
-                ) : (
-                  <ul className="flex flex-col gap-2">
-                    {events.map((ev) => (
-                      <li
-                        key={ev.id}
-                        className="border rounded-lg p-3 bg-gray-50 flex flex-col"
-                      >
-                        <span className="font-semibold">
-                          {ev.event_type === "service"
-                            ? "Service"
-                            : ev.event_type === "owner_change"
-                            ? "Ägarbyte"
-                            : "Notering"}
+              {loadingEvents ? (
+                <p>Laddar historik...</p>
+              ) : events.length === 0 ? (
+                <p>Inga händelser ännu.</p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {events.map((ev) => (
+                    <li key={ev.id} className="border rounded-lg p-3 bg-gray-50">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold">{ev.event_type}</span>
+                        <span className="text-[11px] text-gray-500">
+                          {new Date(ev.created_at).toLocaleString()}
                         </span>
-                        <span className="text-gray-700 text-sm">
-                          {ev.description}
-                        </span>
-                        <span className="text-gray-400 text-xs mt-1">
-                          {new Date(
-                            ev.created_at
-                          ).toLocaleString()}
-                        </span>
-                        {ev.hash && (
-                          <span className="text-[10px] text-gray-500 break-all mt-1">
-                            Hash: {ev.hash}
-                          </span>
-                        )}
-                        {ev.previous_hash && (
-                          <span className="text-[10px] text-gray-400 break-all">
-                            Previous: {ev.previous_hash}
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+                      </div>
+                      <p className="text-sm text-gray-700 mt-1 whitespace-pre-line">
+                        {ev.description}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </>
           )}
         </div>
       </section>
 
-      {/* LEAD-FORM / LANDNING */}
-      <section className="w-full max-w-xl bg-white shadow-md rounded-xl p-6">
-        <h2 className="text-xl font-semibold mb-1">
-          Skicka in din maskin för värdering
-        </h2>
-        <p className="text-sm text-gray-600 mb-4">
-          Fyll i formuläret så återkommer vi med en bedömd marknadsvärdering.
-          Kostnadsfritt och utan förpliktelser.
-        </p>
-
-        <form onSubmit={handleLeadSubmit} className="space-y-4">
-          {/* Maskindata */}
+      {/* LEAD / VALUATION */}
+      <section className="w-full max-w-5xl bg-white shadow-md rounded-xl p-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
           <div>
-            <label className="block text-sm font-medium">Brand</label>
-            <input
-              name="brand"
-              className="border px-2 py-1 w-full rounded"
-              placeholder="Volvo"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium">Model</label>
-            <input
-              name="model"
-              className="border px-2 py-1 w-full rounded"
-              placeholder="L70H"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium">Årsmodell</label>
-            <input
-              type="number"
-              name="year"
-              className="border px-2 py-1 w-full rounded"
-              placeholder="2018"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium">Timmar</label>
-            <input
-              type="number"
-              name="operating_hours"
-              className="border px-2 py-1 w-full rounded"
-              placeholder="6500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium">Plats</label>
-            <input
-              name="location_text"
-              className="border px-2 py-1 w-full rounded"
-              placeholder="Tromsø"
-            />
-          </div>
-
-          {/* Värderingsdata */}
-          <div>
-            <label className="block text-sm font-medium">
-              Uppskattat värde (NOK)
-            </label>
-            <input
-              type="number"
-              name="value_estimate"
-              className="border px-2 py-1 w-full rounded"
-              placeholder="750000"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium">Skick (1–5)</label>
-            <input
-              type="number"
-              name="condition_score"
-              className="border px-2 py-1 w-full rounded"
-              placeholder="4"
-              min={1}
-              max={5}
-            />
-          </div>
-
-          {/* Kontaktuppgifter */}
-          <div>
-            <label className="block text-sm font-medium">Namn</label>
-            <input
-              name="name"
-              className="border px-2 py-1 w-full rounded"
-              placeholder="Ditt namn"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium">E-post</label>
-            <input
-              type="email"
-              name="email"
-              className="border px-2 py-1 w-full rounded"
-              placeholder="du@example.com"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium">Telefon</label>
-            <input
-              name="phone"
-              className="border px-2 py-1 w-full rounded"
-              placeholder="+47 ..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium">Meddelande</label>
-            <textarea
-              name="message"
-              className="border px-2 py-1 w-full rounded"
-              placeholder="Beskriv maskinen, extrautrustning, fel osv."
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="px-4 py-2 rounded bg-black text-white disabled:opacity-60"
-            disabled={leadSubmitting}
-          >
-            {leadSubmitting ? "Skickar..." : "Skicka förfrågan"}
-          </button>
-
-          {leadError && (
-            <p className="text-xs text-red-500 mt-1">{leadError}</p>
-          )}
-          {leadSent && !leadError && (
-            <p className="text-xs text-emerald-600 mt-1">
-              Tack! Din förfrågan är mottagen – vi hör av oss.
+            <h2 className="text-xl font-semibold">Skicka in för värdering</h2>
+            <p className="text-sm text-gray-600">
+              Välj maskintyp och fyll i. Vi sparar som lead via servern.
             </p>
-          )}
+          </div>
+
+          {/* machine type toggle */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setMachineType("wheel_loader")}
+              className={`px-3 py-2 rounded text-sm border ${
+                machineType === "wheel_loader"
+                  ? "bg-slate-900 text-white border-slate-900"
+                  : "bg-white text-gray-700 border-slate-300"
+              }`}
+            >
+              Hjullastare
+            </button>
+            <button
+              type="button"
+              onClick={() => setMachineType("excavator")}
+              className={`px-3 py-2 rounded text-sm border ${
+                machineType === "excavator"
+                  ? "bg-slate-900 text-white border-slate-900"
+                  : "bg-white text-gray-700 border-slate-300"
+              }`}
+            >
+              Grävmaskin
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleLeadSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* left column: machine fields */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium">Brand</label>
+              <input
+                value={brand}
+                onChange={(e) => setBrand(e.target.value)}
+                className="border px-2 py-2 w-full rounded"
+                placeholder="Volvo"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium">Model</label>
+              <input
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                className="border px-2 py-2 w-full rounded"
+                placeholder={machineType === "excavator" ? "EC140" : "L70H"}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium">Årsmodell</label>
+                <input
+                  type="number"
+                  value={year}
+                  onChange={(e) => setYear(e.target.value)}
+                  className="border px-2 py-2 w-full rounded"
+                  placeholder="2018"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium">Timmar</label>
+                <input
+                  type="number"
+                  value={hours}
+                  onChange={(e) => setHours(e.target.value)}
+                  className="border px-2 py-2 w-full rounded"
+                  placeholder="6500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium">Plats</label>
+              <input
+                value={locationText}
+                onChange={(e) => setLocationText(e.target.value)}
+                className="border px-2 py-2 w-full rounded"
+                placeholder="Tromsø"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium">Uppskattat värde (NOK)</label>
+                <input
+                  type="number"
+                  value={valueEstimate}
+                  onChange={(e) => setValueEstimate(e.target.value)}
+                  className="border px-2 py-2 w-full rounded"
+                  placeholder="750000"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium">Skick (1–5)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={conditionScore}
+                  onChange={(e) => setConditionScore(e.target.value)}
+                  className="border px-2 py-2 w-full rounded"
+                  placeholder="4"
+                />
+              </div>
+            </div>
+
+            {/* excavator module */}
+            {machineType === "excavator" && (
+              <div className="border rounded-lg p-3 bg-slate-50 space-y-3">
+                <p className="text-sm font-semibold">Grävmaskin – extra info</p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium">Viktklass (t.ex. 14t)</label>
+                    <input
+                      value={exWeightClass}
+                      onChange={(e) => setExWeightClass(e.target.value)}
+                      className="border px-2 py-2 w-full rounded"
+                      placeholder="14t"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium">Undercarriage %</label>
+                    <input
+                      value={exUndercarriage}
+                      onChange={(e) => setExUndercarriage(e.target.value)}
+                      className="border px-2 py-2 w-full rounded"
+                      placeholder="60"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium">Bandtyp</label>
+                    <select
+                      value={exTracksType}
+                      onChange={(e) => setExTracksType(e.target.value)}
+                      className="border px-2 py-2 w-full rounded"
+                    >
+                      <option value="steel">Stålband</option>
+                      <option value="rubber">Gummiband</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium">Skopstorlek (liter)</label>
+                    <input
+                      type="number"
+                      value={exBucketSize}
+                      onChange={(e) => setExBucketSize(e.target.value)}
+                      className="border px-2 py-2 w-full rounded"
+                      placeholder="700"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3 text-sm">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={exQuickCoupler}
+                      onChange={(e) => setExQuickCoupler(e.target.checked)}
+                    />
+                    Snabbfäste
+                  </label>
+
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={exRototilt}
+                      onChange={(e) => setExRototilt(e.target.checked)}
+                    />
+                    Rototilt
+                  </label>
+
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={exExtraHydraulics}
+                      onChange={(e) => setExExtraHydraulics(e.target.checked)}
+                    />
+                    Extra hydraulik
+                  </label>
+                </div>
+
+                <p className="text-xs text-gray-600">
+                  (Detta skickas som <code>machine_payload</code>.)
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* right column: contact + message + excavator estimate */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium">Namn</label>
+              <input
+                value={leadName}
+                onChange={(e) => setLeadName(e.target.value)}
+                className="border px-2 py-2 w-full rounded"
+                placeholder="Ditt namn"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium">E-post</label>
+              <input
+                type="email"
+                value={leadEmail}
+                onChange={(e) => setLeadEmail(e.target.value)}
+                className="border px-2 py-2 w-full rounded"
+                placeholder="du@example.com"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium">Telefon</label>
+              <input
+                value={leadPhone}
+                onChange={(e) => setLeadPhone(e.target.value)}
+                className="border px-2 py-2 w-full rounded"
+                placeholder="+47 …"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium">Meddelande</label>
+              <textarea
+                value={leadMessage}
+                onChange={(e) => setLeadMessage(e.target.value)}
+                className="border px-2 py-2 w-full rounded min-h-[110px]"
+                placeholder="Beskriv maskinen, extrautrustning, fel osv."
+              />
+            </div>
+
+            {machineType === "excavator" && (
+              <div className="border rounded-lg p-3 bg-amber-50 space-y-3">
+                <p className="text-sm font-semibold">Grävmaskin – estimat (valfritt)</p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium">Estimat low (NOK)</label>
+                    <input
+                      type="number"
+                      value={estimateLow}
+                      onChange={(e) => setEstimateLow(e.target.value)}
+                      className="border px-2 py-2 w-full rounded"
+                      placeholder="450000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium">Estimat high (NOK)</label>
+                    <input
+                      type="number"
+                      value={estimateHigh}
+                      onChange={(e) => setEstimateHigh(e.target.value)}
+                      className="border px-2 py-2 w-full rounded"
+                      placeholder="550000"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium">Estimat note</label>
+                  <input
+                    value={estimateNote}
+                    onChange={(e) => setEstimateNote(e.target.value)}
+                    className="border px-2 py-2 w-full rounded"
+                    placeholder="ex: inkl. 2 skopor, rototilt, 60% UC"
+                  />
+                </div>
+
+                <p className="text-xs text-gray-600">
+                  (Skickas som <code>estimate_low</code>, <code>estimate_high</code>, <code>estimate_note</code>.)
+                </p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="px-4 py-3 rounded bg-black text-white font-semibold disabled:opacity-60 w-full"
+              disabled={leadSubmitting}
+            >
+              {leadSubmitting ? "Skickar..." : "Skicka förfrågan"}
+            </button>
+
+            {leadError && <p className="text-xs text-red-500">{leadError}</p>}
+            {leadSent && !leadError && (
+              <p className="text-xs text-emerald-600">
+                Tack! Din förfrågan är mottagen – vi hör av oss.
+              </p>
+            )}
+          </div>
         </form>
       </section>
+
+      <footer className="text-xs text-gray-500">
+        API: <code>/api/machines</code>, <code>/api/machines/create</code>, <code>/api/machines/events</code>, <code>/api/lead</code>
+      </footer>
     </main>
   );
 }
