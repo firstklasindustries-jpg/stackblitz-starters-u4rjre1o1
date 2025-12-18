@@ -38,31 +38,28 @@ type LeadBase = {
 
   valueEstimate?: number | null;
   conditionScore?: number | null;
+
+  machine_type: MachineType;
+  machine_payload?: any;
+
+  estimate_low?: number | null;
+  estimate_high?: number | null;
+  estimate_note?: string | null;
 };
 
 export default function Home() {
-  // ---- global UI ----
+  // ---------- global UI ----------
   const [error, setError] = useState<string | null>(null);
 
-  // ---- machine type toggle for valuation lead ----
+  // ---------- machine type toggle for lead ----------
   const [machineType, setMachineType] = useState<MachineType>("wheel_loader");
 
-  // ---- machines list ----
+  // ---------- machines ----------
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loadingMachines, setLoadingMachines] = useState(true);
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
 
-  
-  // ---- events ----
-const [events, setEvents] = useState<MachineEvent[]>([]);
-const [loadingEvents, setLoadingEvents] = useState(false);
-
-const [eventType, setEventType] = useState("service");
-const [verifying, setVerifying] = useState(false);
-const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
-const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
-
-  // ---- add machine form ----
+  // add machine form
   const [mName, setMName] = useState("");
   const [mModel, setMModel] = useState("");
   const [mSerial, setMSerial] = useState("");
@@ -70,7 +67,19 @@ const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
   const [mHours, setMHours] = useState<string>("");
   const [savingMachine, setSavingMachine] = useState(false);
 
-  // ---- lead form state ----
+  // ---------- events ----------
+  const [events, setEvents] = useState<MachineEvent[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+
+  const [eventType, setEventType] = useState("service");
+  const [eventDescription, setEventDescription] = useState("");
+  const [savingEvent, setSavingEvent] = useState(false);
+
+  const [verifying, setVerifying] = useState(false);
+  const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
+  const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
+
+  // ---------- lead form ----------
   const [leadSubmitting, setLeadSubmitting] = useState(false);
   const [leadSent, setLeadSent] = useState(false);
   const [leadError, setLeadError] = useState<string | null>(null);
@@ -91,27 +100,18 @@ const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
   const [conditionScore, setConditionScore] = useState<string>("");
 
   // excavator extras
-  const [exWeightClass, setExWeightClass] = useState<string>(""); // e.g. 14t
-  const [exUndercarriage, setExUndercarriage] = useState<string>(""); // e.g. 60%
-  const [exTracksType, setExTracksType] = useState<string>("steel"); // steel/rubber
+  const [exWeightClass, setExWeightClass] = useState<string>("");
+  const [exUndercarriage, setExUndercarriage] = useState<string>("");
+  const [exTracksType, setExTracksType] = useState<string>("steel");
   const [exQuickCoupler, setExQuickCoupler] = useState<boolean>(true);
   const [exRototilt, setExRototilt] = useState<boolean>(false);
-  const [exBucketSize, setExBucketSize] = useState<string>(""); // liters
+  const [exBucketSize, setExBucketSize] = useState<string>("");
   const [exExtraHydraulics, setExExtraHydraulics] = useState<boolean>(false);
 
   // excavator estimate range (optional)
   const [estimateLow, setEstimateLow] = useState<string>("");
   const [estimateHigh, setEstimateHigh] = useState<string>("");
   const [estimateNote, setEstimateNote] = useState<string>("");
-
-  const [eventType, setEventType] = useState("service");
-const [eventDescription, setEventDescription] = useState("");
-const [savingEvent, setSavingEvent] = useState(false);
-
-const [verifying, setVerifying] = useState(false);
-const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
-const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
-
 
   // ---------- helpers ----------
   const toNumOrNull = (v: string) => {
@@ -127,12 +127,12 @@ const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
     try {
       const res = await fetch("/api/machines");
       const json = await res.json();
-
       if (!json.ok) throw new Error(json.error || "Kunde inte hämta maskiner.");
       setMachines((json.machines || []) as Machine[]);
     } catch (e: any) {
       console.error(e);
       setError("Kunde inte hämta maskiner.");
+      setMachines([]);
     } finally {
       setLoadingMachines(false);
     }
@@ -141,80 +141,6 @@ const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
   const fetchEvents = async (machineId: string) => {
     setLoadingEvents(true);
     setError(null);
-
-  const handleAddEvent = async (e: FormEvent) => {
-  e.preventDefault();
-  setError(null);
-
-  if (!selectedMachine) {
-    setError("Välj en maskin först.");
-    return;
-  }
-  if (!eventDescription.trim()) {
-    setError("Skriv en beskrivning för händelsen.");
-    return;
-  }
-
-  setSavingEvent(true);
-  setVerifyMessage(null);
-  setVerifyOk(null);
-
-  try {
-    const res = await fetch("/api/machines/events/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        machine_id: selectedMachine.id,
-        event_type: eventType,
-        description: eventDescription.trim(),
-        data: null,
-      }),
-    });
-
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error || "Kunde inte spara händelsen.");
-
-    setEventDescription("");
-    await fetchEvents(selectedMachine.id);
-  } catch (err: any) {
-    console.error(err);
-    setError(err?.message || "Kunde inte spara händelsen.");
-  } finally {
-    setSavingEvent(false);
-  }
-};
-
-const handleVerifyChain = async () => {
-  if (!selectedMachine) {
-    setError("Välj en maskin först.");
-    return;
-  }
-
-  setVerifying(true);
-  setVerifyMessage("Verifierar kedja...");
-  setVerifyOk(null);
-
-  try {
-    const res = await fetch(
-      `/api/machines/events/verify?machineId=${encodeURIComponent(selectedMachine.id)}`
-    );
-    const json = await res.json();
-
-    if (!json.ok) throw new Error(json.error || "Kunde inte verifiera kedjan.");
-
-    setVerifyOk(!!json.verified);
-    setVerifyMessage(json.message || (json.verified ? "Kedjan är intakt ✅" : "Kedjan är bruten ❌"));
-  } catch (err: any) {
-    console.error(err);
-    setVerifyOk(false);
-    setVerifyMessage(null);
-    setError(err?.message || "Kunde inte verifiera kedjan.");
-  } finally {
-    setVerifying(false);
-  }
-};
-
-    
 
     try {
       const res = await fetch(
@@ -226,6 +152,7 @@ const handleVerifyChain = async () => {
     } catch (e: any) {
       console.error(e);
       setError("Kunde inte hämta historik.");
+      setEvents([]);
     } finally {
       setLoadingEvents(false);
     }
@@ -238,6 +165,8 @@ const handleVerifyChain = async () => {
   const handleSelectMachine = (m: Machine) => {
     setSelectedMachine(m);
     setEvents([]);
+    setVerifyMessage(null);
+    setVerifyOk(null);
     fetchEvents(m.id);
   };
 
@@ -268,10 +197,8 @@ const handleVerifyChain = async () => {
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || "Kunde inte spara maskin.");
 
-      // refresh list
       await fetchMachines();
 
-      // reset form
       setMName("");
       setMModel("");
       setMSerial("");
@@ -285,9 +212,75 @@ const handleVerifyChain = async () => {
     }
   };
 
+  // ---------- Events: create + verify via API ----------
+  const handleAddEvent = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!selectedMachine) return setError("Välj en maskin först.");
+    if (!eventDescription.trim()) return setError("Skriv en beskrivning för händelsen.");
+
+    setSavingEvent(true);
+    setVerifyMessage(null);
+    setVerifyOk(null);
+
+    try {
+      const res = await fetch("/api/machines/events/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          machine_id: selectedMachine.id,
+          event_type: eventType,
+          description: eventDescription.trim(),
+          data: null,
+        }),
+      });
+
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Kunde inte spara händelsen.");
+
+      setEventDescription("");
+      await fetchEvents(selectedMachine.id);
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Kunde inte spara händelsen.");
+    } finally {
+      setSavingEvent(false);
+    }
+  };
+
+  const handleVerifyChain = async () => {
+    if (!selectedMachine) return setError("Välj en maskin först.");
+
+    setVerifying(true);
+    setVerifyMessage("Verifierar kedja...");
+    setVerifyOk(null);
+
+    try {
+      const res = await fetch(
+        `/api/machines/events/verify?machineId=${encodeURIComponent(selectedMachine.id)}`
+      );
+      const json = await res.json();
+
+      if (!json.ok) throw new Error(json.error || "Kunde inte verifiera kedjan.");
+
+      setVerifyOk(!!json.verified);
+      setVerifyMessage(
+        json.message || (json.verified ? "Kedjan är intakt ✅" : "Kedjan är bruten ❌")
+      );
+    } catch (err: any) {
+      console.error(err);
+      setVerifyOk(false);
+      setVerifyMessage(null);
+      setError(err?.message || "Kunde inte verifiera kedjan.");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   // ---------- Lead payload ----------
-  const leadPayload = useMemo(() => {
-    const base: LeadBase = {
+  const leadPayload = useMemo<LeadBase>(() => {
+    const base = {
       name: leadName.trim(),
       email: leadEmail.trim(),
       phone: leadPhone.trim() || undefined,
@@ -303,19 +296,14 @@ const handleVerifyChain = async () => {
       conditionScore: conditionScore ? toNumOrNull(conditionScore) : null,
     };
 
-    // machine_payload differs per type
     if (machineType === "wheel_loader") {
       return {
         ...base,
         machine_type: "wheel_loader",
-        machine_payload: {
-          // keep it simple + expandable
-          notes: "wheel_loader_form",
-        },
+        machine_payload: { notes: "wheel_loader_form" },
       };
     }
 
-    // excavator
     return {
       ...base,
       machine_type: "excavator",
@@ -365,9 +353,7 @@ const handleVerifyChain = async () => {
     setLeadError(null);
 
     try {
-      if (!leadPayload.email) {
-        throw new Error("E-post krävs.");
-      }
+      if (!leadPayload.email) throw new Error("E-post krävs.");
 
       const res = await fetch("/api/lead", {
         method: "POST",
@@ -380,13 +366,11 @@ const handleVerifyChain = async () => {
 
       setLeadSent(true);
 
-      // reset only the lead contact + message (keep machineType selection)
       setLeadName("");
       setLeadEmail("");
       setLeadPhone("");
       setLeadMessage("");
 
-      // optional reset machine fields
       setBrand("");
       setModel("");
       setYear("");
@@ -395,7 +379,6 @@ const handleVerifyChain = async () => {
       setValueEstimate("");
       setConditionScore("");
 
-      // excavator optional reset
       setExWeightClass("");
       setExUndercarriage("");
       setExTracksType("steel");
@@ -403,6 +386,7 @@ const handleVerifyChain = async () => {
       setExRototilt(false);
       setExBucketSize("");
       setExExtraHydraulics(false);
+
       setEstimateLow("");
       setEstimateHigh("");
       setEstimateNote("");
@@ -414,76 +398,11 @@ const handleVerifyChain = async () => {
     }
   };
 
-  
-  setError(null);
-
-  if (!selectedMachine) return setError("Välj en maskin först.");
-  if (!eventDescription.trim()) return setError("Skriv en beskrivning för händelsen.");
-
-  setSavingEvent(true);
-  setVerifyMessage(null);
-  setVerifyOk(null);
-
-  try {
-    const res = await fetch("/api/machines/events/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        machine_id: selectedMachine.id,
-        event_type: eventType,
-        description: eventDescription.trim(),
-        data: null,
-      }),
-    });
-
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error || "Kunde inte spara händelsen.");
-
-    setEventDescription("");
-    await fetchEvents(selectedMachine.id);
-  } catch (err: any) {
-    console.error(err);
-    setError(err?.message || "Kunde inte spara händelsen.");
-  } finally {
-    setSavingEvent(false);
-  }
-};
-
-const handleVerifyChain = async () => {
-  if (!selectedMachine) return setError("Välj en maskin först.");
-
-  setVerifying(true);
-  setVerifyMessage("Verifierar kedja...");
-  setVerifyOk(null);
-
-  try {
-    const res = await fetch(
-      `/api/machines/events/verify?machineId=${encodeURIComponent(selectedMachine.id)}`
-    );
-    const json = await res.json();
-
-    if (!json.ok) throw new Error(json.error || "Kunde inte verifiera kedjan.");
-
-    setVerifyOk(!!json.verified);
-    setVerifyMessage(json.message || (json.verified ? "Kedjan är intakt ✅" : "Kedjan är bruten ❌"));
-  } catch (err: any) {
-    console.error(err);
-    setVerifyOk(false);
-    setVerifyMessage(null);
-    setError(err?.message || "Kunde inte verifiera kedjan.");
-  } finally {
-    setVerifying(false);
-  }
-};
-
-    
   // ---------- UI ----------
   return (
     <main className="min-h-screen flex flex-col items-center p-6 gap-8 bg-slate-50">
       <header className="w-full max-w-5xl">
-        <h1 className="text-3xl font-bold text-center">
-          Arctic Trace – MVP
-        </h1>
+        <h1 className="text-3xl font-bold text-center">Arctic Trace – MVP</h1>
         <p className="text-sm text-gray-600 mt-2 text-center">
           Maskiner, historik och värderings-leads. Allt på samma sida. ✅
         </p>
@@ -491,9 +410,9 @@ const handleVerifyChain = async () => {
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      {/* MACHINES */}
+      {/* MACHINES + EVENTS */}
       <section className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Left */}
+        {/* Left: Machines */}
         <div className="bg-white shadow-md rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-3">Lägg till maskin</h2>
 
@@ -570,8 +489,7 @@ const handleVerifyChain = async () => {
                 >
                   <p className="font-semibold">{m.name || "(utan namn)"}</p>
                   <p className="text-sm text-gray-600">
-                    Modell: {m.model || "-"} • År: {m.year || "-"} • Timmar:{" "}
-                    {m.hours ?? "-"}
+                    Modell: {m.model || "-"} • År: {m.year || "-"} • Timmar: {m.hours ?? "-"}
                   </p>
                 </li>
               ))}
@@ -579,76 +497,73 @@ const handleVerifyChain = async () => {
           )}
         </div>
 
-        {/* Right */}
+        {/* Right: Machine pass + events */}
         <div className="bg-white shadow-md rounded-xl p-6">
           {!selectedMachine ? (
             <p>Välj en maskin till vänster för att se historik.</p>
           ) : (
             <>
-              <h2 className="text-xl font-semibold mb-2">
-                Maskinpass: {selectedMachine.name}
-              </h2>
+              <h2 className="text-xl font-semibold mb-2">Maskinpass: {selectedMachine.name}</h2>
               <p className="text-sm text-gray-600 mb-4">
-                Modell: {selectedMachine.model || "-"} • Serienr:{" "}
-                {selectedMachine.serial_number || "-"}
+                Modell: {selectedMachine.model || "-"} • Serienr: {selectedMachine.serial_number || "-"}
               </p>
- {/* ADD EVENT + VERIFY */}
-<div className="border rounded-lg p-3 bg-slate-50 mb-4">
-  <h3 className="font-semibold mb-2">Lägg till händelse</h3>
 
-  <form onSubmit={handleAddEvent} className="flex flex-col gap-2">
-    <select
-      value={eventType}
-      onChange={(e) => setEventType(e.target.value)}
-      className="border rounded px-2 py-2"
-    >
-      <option value="service">Service</option>
-      <option value="owner_change">Ägarbyte</option>
-      <option value="note">Notering</option>
-    </select>
+              {/* ADD EVENT + VERIFY */}
+              <div className="border rounded-lg p-3 bg-slate-50 mb-4">
+                <h3 className="font-semibold mb-2">Lägg till händelse</h3>
 
-    <textarea
-      value={eventDescription}
-      onChange={(e) => setEventDescription(e.target.value)}
-      className="border rounded px-2 py-2 min-h-[90px]"
-      placeholder="Beskrivning..."
-    />
+                <form onSubmit={handleAddEvent} className="flex flex-col gap-2">
+                  <select
+                    value={eventType}
+                    onChange={(e) => setEventType(e.target.value)}
+                    className="border rounded px-2 py-2"
+                  >
+                    <option value="service">Service</option>
+                    <option value="owner_change">Ägarbyte</option>
+                    <option value="note">Notering</option>
+                  </select>
 
-    <button
-      type="submit"
-      disabled={savingEvent}
-      className="bg-blue-600 text-white rounded px-3 py-2 font-semibold disabled:opacity-60"
-    >
-      {savingEvent ? "Sparar..." : "Spara händelse"}
-    </button>
-  </form>
+                  <textarea
+                    value={eventDescription}
+                    onChange={(e) => setEventDescription(e.target.value)}
+                    className="border rounded px-2 py-2 min-h-[90px]"
+                    placeholder="Beskrivning..."
+                  />
 
-  <div className="flex items-center gap-3 mt-3">
-    <button
-      type="button"
-      onClick={handleVerifyChain}
-      disabled={verifying || !selectedMachine}
-      className="text-xs bg-emerald-600 text-white px-3 py-1 rounded disabled:opacity-60"
-    >
-      {verifying ? "Verifierar..." : "Verifiera kedja"}
-    </button>
+                  <button
+                    type="submit"
+                    disabled={savingEvent}
+                    className="bg-blue-600 text-white rounded px-3 py-2 font-semibold disabled:opacity-60"
+                  >
+                    {savingEvent ? "Sparar..." : "Spara händelse"}
+                  </button>
+                </form>
 
-    {verifyMessage && (
-      <span
-        className={`text-xs ${
-          verifyOk === false
-            ? "text-red-600"
-            : verifyOk === true
-            ? "text-emerald-700"
-            : "text-gray-600"
-        }`}
-      >
-        {verifyMessage}
-      </span>
-    )}
-  </div>
-</div>
+                <div className="flex items-center gap-3 mt-3">
+                  <button
+                    type="button"
+                    onClick={handleVerifyChain}
+                    disabled={verifying || !selectedMachine}
+                    className="text-xs bg-emerald-600 text-white px-3 py-1 rounded disabled:opacity-60"
+                  >
+                    {verifying ? "Verifierar..." : "Verifiera kedja"}
+                  </button>
 
+                  {verifyMessage && (
+                    <span
+                      className={`text-xs ${
+                        verifyOk === false
+                          ? "text-red-600"
+                          : verifyOk === true
+                          ? "text-emerald-700"
+                          : "text-gray-600"
+                      }`}
+                    >
+                      {verifyMessage}
+                    </span>
+                  )}
+                </div>
+              </div>
 
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold">Historik</h3>
@@ -679,6 +594,16 @@ const handleVerifyChain = async () => {
                       <p className="text-sm text-gray-700 mt-1 whitespace-pre-line">
                         {ev.description}
                       </p>
+                      {ev.hash && (
+                        <p className="text-[10px] text-gray-500 break-all mt-2">
+                          Hash: {ev.hash}
+                        </p>
+                      )}
+                      {ev.previous_hash && (
+                        <p className="text-[10px] text-gray-400 break-all">
+                          Prev: {ev.previous_hash}
+                        </p>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -698,7 +623,6 @@ const handleVerifyChain = async () => {
             </p>
           </div>
 
-          {/* machine type toggle */}
           <div className="flex gap-2">
             <button
               type="button"
@@ -726,7 +650,7 @@ const handleVerifyChain = async () => {
         </div>
 
         <form onSubmit={handleLeadSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* left column: machine fields */}
+          {/* left column */}
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium">Brand</label>
@@ -759,7 +683,6 @@ const handleVerifyChain = async () => {
                   placeholder="2018"
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium">Timmar</label>
                 <input
@@ -808,7 +731,6 @@ const handleVerifyChain = async () => {
               </div>
             </div>
 
-            {/* excavator module */}
             {machineType === "excavator" && (
               <div className="border rounded-lg p-3 bg-slate-50 space-y-3">
                 <p className="text-sm font-semibold">Grävmaskin – extra info</p>
@@ -846,7 +768,6 @@ const handleVerifyChain = async () => {
                       <option value="rubber">Gummiband</option>
                     </select>
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium">Skopstorlek (liter)</label>
                     <input
@@ -895,7 +816,7 @@ const handleVerifyChain = async () => {
             )}
           </div>
 
-          {/* right column: contact + message + excavator estimate */}
+          {/* right column */}
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium">Namn</label>
@@ -955,6 +876,7 @@ const handleVerifyChain = async () => {
                       placeholder="450000"
                     />
                   </div>
+
                   <div>
                     <label className="block text-sm font-medium">Estimat high (NOK)</label>
                     <input
@@ -978,7 +900,8 @@ const handleVerifyChain = async () => {
                 </div>
 
                 <p className="text-xs text-gray-600">
-                  (Skickas som <code>estimate_low</code>, <code>estimate_high</code>, <code>estimate_note</code>.)
+                  (Skickas som <code>estimate_low</code>, <code>estimate_high</code>,{" "}
+                  <code>estimate_note</code>.)
                 </p>
               </div>
             )}
@@ -1002,8 +925,11 @@ const handleVerifyChain = async () => {
       </section>
 
       <footer className="text-xs text-gray-500">
-        API: <code>/api/machines</code>, <code>/api/machines/create</code>, <code>/api/machines/events</code>, <code>/api/lead</code>
+        API: <code>/api/machines</code>, <code>/api/machines/create</code>,{" "}
+        <code>/api/machines/events</code>, <code>/api/machines/events/create</code>,{" "}
+        <code>/api/machines/events/verify</code>, <code>/api/lead</code>
       </footer>
     </main>
   );
 }
+
