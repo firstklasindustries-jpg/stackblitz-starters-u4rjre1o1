@@ -1,3 +1,4 @@
+// app/api/lead/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -10,12 +11,12 @@ function decodeJwtRole(jwt: string) {
   } catch {
     return null;
   }
+}
 
 function getSupabaseAdmin() {
   const url = (process.env.SUPABASE_URL || "").trim();
   const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 
-  // ✅ SÄTT DEN HÄR (logg för att se vad Vercel faktiskt ger dig)
   console.log("LEAD ENV CHECK", {
     hasUrl: !!url,
     urlPrefix: url.slice(0, 25),
