@@ -38,6 +38,7 @@ export async function POST(req: Request) {
     const { error } = await supabase.from("machines").insert([
       { name, model, serial_number, year, hours },
     ]);
+image_url: body.image_url ?? null,
 
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
