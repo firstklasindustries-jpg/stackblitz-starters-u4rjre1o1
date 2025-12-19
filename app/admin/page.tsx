@@ -266,6 +266,27 @@ const updateLeadStatus = async (id: string, status: LeadStatus) => {
             {leads.map((lead) => {
               const status: LeadStatus = (lead.status as LeadStatus) || "new";
 
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100 mt-2">
+  <p className="text-[11px] text-gray-500 mr-2">Uppdatera status:</p>
+
+  {(["new","contacted","in_progress","won","lost"] as LeadStatus[]).map((s) => (
+    <button
+      key={s}
+      type="button"
+      onClick={() => updateLeadStatus(lead.id, s)}
+      disabled={updatingId === lead.id}
+      className={`text-[11px] px-2 py-1 rounded border ${
+        (lead.status || "new") === s
+          ? "bg-slate-900 text-white border-slate-900"
+          : "bg-white text-gray-700 border-slate-300"
+      } disabled:opacity-60`}
+    >
+      {STATUS_LABELS[s]}
+    </button>
+  ))}
+</div>
+
+
               return (
                 <div
                   key={lead.id}
