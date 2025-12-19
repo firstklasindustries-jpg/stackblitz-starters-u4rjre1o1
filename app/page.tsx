@@ -1,6 +1,7 @@
 "use client";
 
 import React, { FormEvent, useEffect, useMemo, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 type Machine = {
   id: string;
@@ -51,6 +52,42 @@ export default function Home() {
   // ---------- global UI ----------
   const [error, setError] = useState<string | null>(null);
 
+  const handleNewMachineImageChange = async (
+  e: React.ChangeEvent<HTMLInputElement>
+) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  setError(null);
+  setUploadingNewMachineImage(true);
+
+  try {
+    const filePath = `new/${Date.now()}-${file.name}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("machine-images")
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error(uploadError);
+      setError("Kunde inte ladda upp bild: " + uploadError.message);
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from("machine-images")
+      .getPublicUrl(filePath);
+
+    setNewMachineImageUrl(data.publicUrl);
+  } catch (err: any) {
+    console.error(err);
+    setError("Något gick fel vid bilduppladdning.");
+  } finally {
+    setUploadingNewMachineImage(false);
+  }
+};
+
+
   // ---------- machine type toggle for lead ----------
   const [machineType, setMachineType] = useState<MachineType>("wheel_loader");
 
@@ -59,6 +96,10 @@ export default function Home() {
   const [loadingMachines, setLoadingMachines] = useState(true);
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
 
+  const [newMachineImageUrl, setNewMachineImageUrl] = useState<string>("");
+const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
+
+  
   // add machine form
   const [mName, setMName] = useState("");
   const [mModel, setMModel] = useState("");
@@ -180,6 +221,17 @@ export default function Home() {
     }
 
     setSavingMachine(true);
+
+    body: JSON.stringify({
+  name: mName,
+  model: mModel,
+  serial_number: mSerial,
+  year: mYear ? Number(mYear) : null,
+  hours: mHours ? Number(mHours) : null,
+  image_url: newMachineImageUrl || null,
+}),
+
+    setNewMachineImageUrl("");
 
     try {
       const res = await fetch("/api/machines/create", {
@@ -415,7 +467,41 @@ export default function Home() {
         {/* Left: Machines */}
         <div className="bg-white shadow-md rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-3">Lägg till maskin</h2>
+<div className="mb-4">
+  <p className="text-sm font-semibold mb-1">Bild (valfritt)</p>
 
+  <input
+    type="file"
+    accept="image/*"
+    onChange={handleNewMachineImageChange}
+    className="text-sm"
+  />
+
+  {uploadingNewMachineImage && (
+    <p className="text-xs text-gray-500 mt-1">Laddar upp bild...</p>
+  )}
+
+  {newMachineImageUrl && (
+    <div className="mt-2">
+      <p className="text-xs text-emerald-700">Bild uppladdad ✅</p>
+      <img
+        src={newMachineImageUrl}
+        alt="Ny maskin"
+        className="mt-2 w-full max-h-48 object-cover rounded-lg border"
+      />
+      <button
+        type="button"
+        onClick={() => setNewMachineImageUrl("")}
+        className="mt-2 text-xs px-3 py-1 rounded border border-slate-300"
+      >
+        Ta bort bild
+      </button>
+    </div>
+  )}
+</div>
+
+
+          
           <form onSubmit={handleAddMachine} className="flex flex-col gap-3 mb-6">
             <input
               type="text"
