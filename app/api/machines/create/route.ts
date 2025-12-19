@@ -1,4 +1,5 @@
-// app/api/machines/create/route.ts
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -22,28 +23,54 @@ export async function POST(req: Request) {
     const model = String(body.model || "").trim();
     const serial_number = String(body.serial_number || "").trim();
 
+    if (!name || !model || !serial_number) {
+      return NextResponse.json(
+        { ok: false, error: "Missing name/model/serial_number" },
+        { status: 400 }
+      );
+    }
+
     const year =
       typeof body.year === "number" && Number.isFinite(body.year) ? body.year : null;
 
     const hours =
       typeof body.hours === "number" && Number.isFinite(body.hours) ? body.hours : null;
 
-    if (!name || !model || !serial_number) {
-      return NextResponse.json(
-        { ok: false, error: "Missing required fields: name, model, serial_number" },
-        { status: 400 }
-      );
+    const image_url =
+      typeof body.image_url === "string" && body.image_url.trim().length > 0
+        ? body.image_url.trim()
+        : null;
+
+    const row = {
+      name,
+      model,
+      serial_number,
+      year,
+      hours,
+      image_url, // ✅ här ska den vara
+    };
+
+    const { data, error } = await supabase
+      .from("machines")
+      .insert(row)
+      .select("id, created_at, image_url")
+      .maybeSingle();
+
+    if (error) {
+      console.error("machines/create insert error:", error);
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    const { error } = await supabase.from("machines").insert([
-      { name, model, serial_number, year, hours },
-    ]);
-image_url: body.image_url ?? null,
-
-    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, machine: data });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
+    console.error("machines/create error:", e);
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Server error" },
+      { status: 500 }
+    );
   }
+}
+
+export async function GET() {
+  return NextResponse.json({ ok: false, error: "Use POST" }, { status: 405 });
 }
