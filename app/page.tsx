@@ -61,6 +61,19 @@ export default function Home() {
   setError(null);
   setUploadingNewMachineImage(true);
 
+    const [loadingNewMachineAi, setLoadingNewMachineAi] = useState(false);
+
+  type Condition = {
+  condition_score: number;
+  condition_label: string;
+  notes: string;
+  risk_flags: string[];
+};
+
+const [condition, setCondition] = useState<Condition | null>(null);
+const [loadingCondition, setLoadingCondition] = useState(false);
+
+
   try {
     const filePath = `new/${Date.now()}-${file.name}`;
 
@@ -74,6 +87,87 @@ export default function Home() {
       return;
     }
 
+const handleCondition = async () => {
+  if (!selectedMachine?.image_url) {
+    setError("Maskinen saknar bild. Ladda upp bild först.");
+    return;
+  }
+
+  setError(null);
+  setLoadingCondition(true);
+  setCondition(null);
+
+  try {
+    const res = await fetch("/api/condition", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageUrl: selectedMachine.image_url }),
+    });
+
+    const json = await res.json();
+    if (!res.ok || !json?.ok) {
+      throw new Error(json?.error || "AI-skick misslyckades.");
+    }
+
+    setCondition({
+      condition_score: json.condition_score,
+      condition_label: json.condition_label,
+      notes: json.notes || "",
+      risk_flags: json.risk_flags || [],
+    });
+  } catch (e: any) {
+    console.error(e);
+    setError(e?.message || "Kunde inte bedöma skick.");
+  } finally {
+    setLoadingCondition(false);
+  }
+};
+
+    
+const handleNewMachineAi = async () => {
+  if (!newMachineImageUrl) {
+    setError("Ladda upp en bild först.");
+    return;
+  }
+
+  setError(null);
+  setLoadingNewMachineAi(true);
+
+  try {
+    const res = await fetch("/api/ai-scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageUrl: newMachineImageUrl }),
+    });
+
+    const text = await res.text();
+    let json: any;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new Error("AI-scan gav inte JSON.");
+    }
+
+    if (!res.ok || !json) throw new Error(json.error || "AI-scan misslyckades.");
+
+    const modelFromAi = String(json.model || "").trim();
+    const serialFromAi = String(json.serial || "").trim();
+
+    // Fyll i dina add-machine inputs
+    if (modelFromAi) {
+      setMModel(modelFromAi);
+      if (!mName.trim()) setMName(modelFromAi);
+    }
+    if (serialFromAi) setMSerial(serialFromAi);
+  } catch (e: any) {
+    console.error(e);
+    setError(e?.message || "Kunde inte köra AI-scan.");
+  } finally {
+    setLoadingNewMachineAi(false);
+  }
+};
+
+    
     const { data } = supabase.storage
       .from("machine-images")
       .getPublicUrl(filePath);
@@ -471,6 +565,16 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
   <p className="text-sm font-semibold mb-1">Bild (valfritt)</p>
 
   <input
+    
+    <button
+  type="button"
+  onClick={handleNewMachineAi}
+  disabled={loadingNewMachineAi || !newMachineImageUrl}
+  className="mt-2 text-xs bg-purple-600 text-white px-3 py-1 rounded disabled:opacity-60"
+>
+  {loadingNewMachineAi ? "Läser av med AI..." : "🔍 AI: fyll i modell & serienr"}
+</button>
+
     type="file"
     accept="image/*"
     onChange={handleNewMachineImageChange}
@@ -650,7 +754,35 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
                   )}
                 </div>
               </div>
+<div className="mb-4 space-y-2">
+  <button
+    type="button"
+    onClick={handleCondition}
+    disabled={loadingCondition}
+    className="text-xs bg-emerald-700 text-white px-3 py-1 rounded disabled:opacity-60"
+  >
+    {loadingCondition ? "AI bedömer skick..." : "🧠 AI-bedöm skick från bild"}
+  </button>
 
+  {condition && (
+    <div className="border rounded-lg p-3 bg-emerald-50">
+      <p className="text-sm font-semibold">
+        Skick: {condition.condition_label} ({condition.condition_score}/5)
+      </p>
+      {condition.notes && (
+        <p className="text-xs text-gray-700 mt-1">{condition.notes}</p>
+      )}
+      {condition.risk_flags?.length > 0 && (
+        <p className="text-[11px] text-red-700 mt-1">
+          Risker: {condition.risk_flags.join(", ")}
+        </p>
+      )}
+    </div>
+  )}
+</div>
+
+
+              
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold">Historik</h3>
                 <button
