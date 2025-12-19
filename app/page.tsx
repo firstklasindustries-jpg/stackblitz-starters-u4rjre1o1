@@ -16,6 +16,7 @@ type Machine = {
 
 type MachineEvent = {
   id: string;
+  machine_id: string;
   event_type: string;
   description: string;
   created_at: string;
@@ -24,6 +25,14 @@ type MachineEvent = {
 };
 
 type MachineType = "wheel_loader" | "excavator";
+type EventType = "service" | "owner_change" | "note";
+
+type Condition = {
+  condition_score: number;
+  condition_label: string;
+  notes: string;
+  risk_flags: string[];
+};
 
 type LeadBase = {
   name: string;
@@ -39,174 +48,28 @@ type LeadBase = {
 
   valueEstimate?: number | null;
   conditionScore?: number | null;
+};
 
-  machine_type: MachineType;
-  machine_payload?: any;
-
-  estimate_low?: number | null;
-  estimate_high?: number | null;
-  estimate_note?: string | null;
+const toNumOrNull = (v: string) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 };
 
 export default function Home() {
-  // ---------- global UI ----------
+  // ---- global UI ----
   const [error, setError] = useState<string | null>(null);
 
-  const handleNewMachineImageChange = async (
-  e: React.ChangeEvent<HTMLInputElement>
-) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-
-  setError(null);
-  setUploadingNewMachineImage(true);
-
-    const [loadingNewMachineAi, setLoadingNewMachineAi] = useState(false);
-
-  type Condition = {
-  condition_score: number;
-  condition_label: string;
-  notes: string;
-  risk_flags: string[];
-};
-
-const [condition, setCondition] = useState<Condition | null>(null);
-const [loadingCondition, setLoadingCondition] = useState(false);
-
-
-  try {
-    const filePath = `new/${Date.now()}-${file.name}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("machine-images")
-      .upload(filePath, file);
-
-    if (uploadError) {
-      console.error(uploadError);
-      setError("Kunde inte ladda upp bild: " + uploadError.message);
-      return;
-    }
-
-const handleCondition = async () => {
-  if (!selectedMachine?.image_url) {
-    setError("Maskinen saknar bild. Ladda upp bild först.");
-    return;
-  }
-
-  setError(null);
-  setLoadingCondition(true);
-  setCondition(null);
-
-  try {
-    const res = await fetch("/api/condition", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageUrl: selectedMachine.image_url }),
-    });
-
-    const json = await res.json();
-    if (!res.ok || !json?.ok) {
-      throw new Error(json?.error || "AI-skick misslyckades.");
-    }
-
-    setCondition({
-      condition_score: json.condition_score,
-      condition_label: json.condition_label,
-      notes: json.notes || "",
-      risk_flags: json.risk_flags || [],
-    });
-  } catch (e: any) {
-    console.error(e);
-    setError(e?.message || "Kunde inte bedöma skick.");
-  } finally {
-    setLoadingCondition(false);
-  }
-};
-
-    
-const handleNewMachineAi = async () => {
-  if (!newMachineImageUrl) {
-    setError("Ladda upp en bild först.");
-    return;
-  }
-
-  setError(null);
-  setLoadingNewMachineAi(true);
-
-  try {
-    const res = await fetch("/api/ai-scan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageUrl: newMachineImageUrl }),
-    });
-
-    const text = await res.text();
-    let json: any;
-    try {
-      json = JSON.parse(text);
-    } catch {
-      throw new Error("AI-scan gav inte JSON.");
-    }
-
-    if (!res.ok || !json) throw new Error(json.error || "AI-scan misslyckades.");
-
-    const modelFromAi = String(json.model || "").trim();
-    const serialFromAi = String(json.serial || "").trim();
-
-    // Fyll i dina add-machine inputs
-    if (modelFromAi) {
-      setMModel(modelFromAi);
-      if (!mName.trim()) setMName(modelFromAi);
-    }
-    if (serialFromAi) setMSerial(serialFromAi);
-  } catch (e: any) {
-    console.error(e);
-    setError(e?.message || "Kunde inte köra AI-scan.");
-  } finally {
-    setLoadingNewMachineAi(false);
-  }
-};
-
-    
-    const { data } = supabase.storage
-      .from("machine-images")
-      .getPublicUrl(filePath);
-
-    setNewMachineImageUrl(data.publicUrl);
-  } catch (err: any) {
-    console.error(err);
-    setError("Något gick fel vid bilduppladdning.");
-  } finally {
-    setUploadingNewMachineImage(false);
-  }
-};
-
-
-  // ---------- machine type toggle for lead ----------
-  const [machineType, setMachineType] = useState<MachineType>("wheel_loader");
-
-  // ---------- machines ----------
+  // ---- machine list ----
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loadingMachines, setLoadingMachines] = useState(true);
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
 
-  const [newMachineImageUrl, setNewMachineImageUrl] = useState<string>("");
-const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
-
-  
-  // add machine form
-  const [mName, setMName] = useState("");
-  const [mModel, setMModel] = useState("");
-  const [mSerial, setMSerial] = useState("");
-  const [mYear, setMYear] = useState<string>("");
-  const [mHours, setMHours] = useState<string>("");
-  const [savingMachine, setSavingMachine] = useState(false);
-
-  // ---------- events ----------
+  // ---- events ----
   const [events, setEvents] = useState<MachineEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
 
-  const [eventType, setEventType] = useState("service");
+  // add event + verify
+  const [eventType, setEventType] = useState<EventType>("service");
   const [eventDescription, setEventDescription] = useState("");
   const [savingEvent, setSavingEvent] = useState(false);
 
@@ -214,18 +77,37 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
 
-  // ---------- lead form ----------
+  // ---- add machine form ----
+  const [mName, setMName] = useState("");
+  const [mModel, setMModel] = useState("");
+  const [mSerial, setMSerial] = useState("");
+  const [mYear, setMYear] = useState<string>("");
+  const [mHours, setMHours] = useState<string>("");
+  const [savingMachine, setSavingMachine] = useState(false);
+
+  // upload (before create)
+  const [newMachineImageUrl, setNewMachineImageUrl] = useState<string>("");
+  const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
+
+  // AI scan for new machine (model + serial)
+  const [loadingNewMachineAi, setLoadingNewMachineAi] = useState(false);
+
+  // AI condition for selected machine
+  const [condition, setCondition] = useState<Condition | null>(null);
+  const [loadingCondition, setLoadingCondition] = useState(false);
+
+  // ---- lead form ----
+  const [machineType, setMachineType] = useState<MachineType>("wheel_loader");
+
   const [leadSubmitting, setLeadSubmitting] = useState(false);
   const [leadSent, setLeadSent] = useState(false);
   const [leadError, setLeadError] = useState<string | null>(null);
 
-  // lead basics
   const [leadName, setLeadName] = useState("");
   const [leadEmail, setLeadEmail] = useState("");
   const [leadPhone, setLeadPhone] = useState("");
   const [leadMessage, setLeadMessage] = useState("");
 
-  // common machine fields
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
   const [year, setYear] = useState<string>("");
@@ -243,16 +125,10 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
   const [exBucketSize, setExBucketSize] = useState<string>("");
   const [exExtraHydraulics, setExExtraHydraulics] = useState<boolean>(false);
 
-  // excavator estimate range (optional)
+  // excavator estimate (optional)
   const [estimateLow, setEstimateLow] = useState<string>("");
   const [estimateHigh, setEstimateHigh] = useState<string>("");
   const [estimateNote, setEstimateNote] = useState<string>("");
-
-  // ---------- helpers ----------
-  const toNumOrNull = (v: string) => {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
-  };
 
   // ---------- API: machines ----------
   const fetchMachines = async () => {
@@ -267,7 +143,6 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
     } catch (e: any) {
       console.error(e);
       setError("Kunde inte hämta maskiner.");
-      setMachines([]);
     } finally {
       setLoadingMachines(false);
     }
@@ -278,16 +153,13 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
     setError(null);
 
     try {
-      const res = await fetch(
-        `/api/machines/events?machineId=${encodeURIComponent(machineId)}`
-      );
+      const res = await fetch(`/api/machines/events?machineId=${encodeURIComponent(machineId)}`);
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || "Kunde inte hämta historik.");
       setEvents((json.events || []) as MachineEvent[]);
     } catch (e: any) {
       console.error(e);
       setError("Kunde inte hämta historik.");
-      setEvents([]);
     } finally {
       setLoadingEvents(false);
     }
@@ -302,9 +174,85 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
     setEvents([]);
     setVerifyMessage(null);
     setVerifyOk(null);
+    setCondition(null);
     fetchEvents(m.id);
   };
 
+  // ---------- Upload image (before create) ----------
+  const handleNewMachineImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setError(null);
+    setUploadingNewMachineImage(true);
+
+    try {
+      const filePath = `new/${Date.now()}-${file.name}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("machine-images")
+        .upload(filePath, file);
+
+      if (uploadError) {
+        console.error(uploadError);
+        setError("Kunde inte ladda upp bild: " + uploadError.message);
+        return;
+      }
+
+      const { data } = supabase.storage.from("machine-images").getPublicUrl(filePath);
+      setNewMachineImageUrl(data.publicUrl);
+    } catch (err: any) {
+      console.error(err);
+      setError("Något gick fel vid bilduppladdning.");
+    } finally {
+      setUploadingNewMachineImage(false);
+    }
+  };
+
+  // ---------- AI scan new machine ----------
+  const handleNewMachineAi = async () => {
+    if (!newMachineImageUrl) {
+      setError("Ladda upp en bild först.");
+      return;
+    }
+
+    setError(null);
+    setLoadingNewMachineAi(true);
+
+    try {
+      const res = await fetch("/api/ai-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: newMachineImageUrl }),
+      });
+
+      const text = await res.text();
+      let json: any;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        throw new Error("AI-scan gav inte JSON.");
+      }
+
+      if (!res.ok) throw new Error(json?.error || "AI-scan misslyckades.");
+
+      const modelFromAi = String(json.model || "").trim();
+      const serialFromAi = String(json.serial || "").trim();
+
+      if (modelFromAi) {
+        setMModel(modelFromAi);
+        if (!mName.trim()) setMName(modelFromAi);
+      }
+      if (serialFromAi) setMSerial(serialFromAi);
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message || "Kunde inte köra AI-scan.");
+    } finally {
+      setLoadingNewMachineAi(false);
+    }
+  };
+
+  // ---------- Create machine ----------
   const handleAddMachine = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -316,17 +264,6 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
 
     setSavingMachine(true);
 
-    body: JSON.stringify({
-  name: mName,
-  model: mModel,
-  serial_number: mSerial,
-  year: mYear ? Number(mYear) : null,
-  hours: mHours ? Number(mHours) : null,
-  image_url: newMachineImageUrl || null,
-}),
-
-    setNewMachineImageUrl("");
-
     try {
       const res = await fetch("/api/machines/create", {
         method: "POST",
@@ -337,6 +274,7 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
           serial_number: mSerial,
           year: mYear ? Number(mYear) : null,
           hours: mHours ? Number(mHours) : null,
+          image_url: newMachineImageUrl || null,
         }),
       });
 
@@ -350,6 +288,7 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
       setMSerial("");
       setMYear("");
       setMHours("");
+      setNewMachineImageUrl("");
     } catch (e: any) {
       console.error(e);
       setError(e?.message || "Kunde inte spara maskin.");
@@ -358,7 +297,7 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
     }
   };
 
-  // ---------- Events: create + verify via API ----------
+  // ---------- Events create (API) ----------
   const handleAddEvent = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -395,6 +334,7 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
     }
   };
 
+  // ---------- Verify chain (API) ----------
   const handleVerifyChain = async () => {
     if (!selectedMachine) return setError("Välj en maskin först.");
 
@@ -407,7 +347,6 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
         `/api/machines/events/verify?machineId=${encodeURIComponent(selectedMachine.id)}`
       );
       const json = await res.json();
-
       if (!json.ok) throw new Error(json.error || "Kunde inte verifiera kedjan.");
 
       setVerifyOk(!!json.verified);
@@ -424,9 +363,48 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
     }
   };
 
+  // ---------- AI condition (selected machine) ----------
+  const handleCondition = async () => {
+    if (!selectedMachine?.image_url) {
+      setError("Maskinen saknar bild. Ladda upp en bild när du skapar maskinen.");
+      return;
+    }
+
+    setError(null);
+    setLoadingCondition(true);
+    setCondition(null);
+
+    try {
+      const res = await fetch("/api/condition", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: selectedMachine.image_url }),
+      });
+
+      const json = await res.json();
+
+      // stöd båda: {ok:true,...} eller {condition_score,...}
+      if (!res.ok) throw new Error(json?.error || "AI-skick misslyckades.");
+
+      if (json?.ok === false) throw new Error(json?.error || "AI-skick misslyckades.");
+
+      setCondition({
+        condition_score: json.condition_score,
+        condition_label: json.condition_label,
+        notes: json.notes || "",
+        risk_flags: json.risk_flags || [],
+      });
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message || "Kunde inte bedöma skick.");
+    } finally {
+      setLoadingCondition(false);
+    }
+  };
+
   // ---------- Lead payload ----------
-  const leadPayload = useMemo<LeadBase>(() => {
-    const base = {
+  const leadPayload = useMemo(() => {
+    const base: LeadBase = {
       name: leadName.trim(),
       email: leadEmail.trim(),
       phone: leadPhone.trim() || undefined,
@@ -491,7 +469,7 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
     estimateNote,
   ]);
 
-  // ---------- Lead submit (ONLY via /api/lead) ----------
+  // ---------- Lead submit ----------
   const handleLeadSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLeadSubmitting(true);
@@ -532,7 +510,6 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
       setExRototilt(false);
       setExBucketSize("");
       setExExtraHydraulics(false);
-
       setEstimateLow("");
       setEstimateHigh("");
       setEstimateNote("");
@@ -550,62 +527,58 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
       <header className="w-full max-w-5xl">
         <h1 className="text-3xl font-bold text-center">Arctic Trace – MVP</h1>
         <p className="text-sm text-gray-600 mt-2 text-center">
-          Maskiner, historik och värderings-leads. Allt på samma sida. ✅
+          Maskiner, historik, AI-scan, AI-skick och värderings-leads. ✅
         </p>
       </header>
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      {/* MACHINES + EVENTS */}
+      {/* MACHINES */}
       <section className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Left: Machines */}
+        {/* Left */}
         <div className="bg-white shadow-md rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-3">Lägg till maskin</h2>
-<div className="mb-4">
-  <p className="text-sm font-semibold mb-1">Bild (valfritt)</p>
 
-  <input
-    
-    <button
-  type="button"
-  onClick={handleNewMachineAi}
-  disabled={loadingNewMachineAi || !newMachineImageUrl}
-  className="mt-2 text-xs bg-purple-600 text-white px-3 py-1 rounded disabled:opacity-60"
->
-  {loadingNewMachineAi ? "Läser av med AI..." : "🔍 AI: fyll i modell & serienr"}
-</button>
+          {/* Image upload before create */}
+          <div className="mb-4">
+            <p className="text-sm font-semibold mb-1">Bild (valfritt)</p>
+            <input type="file" accept="image/*" onChange={handleNewMachineImageChange} className="text-sm" />
 
-    type="file"
-    accept="image/*"
-    onChange={handleNewMachineImageChange}
-    className="text-sm"
-  />
+            {uploadingNewMachineImage && (
+              <p className="text-xs text-gray-500 mt-1">Laddar upp bild...</p>
+            )}
 
-  {uploadingNewMachineImage && (
-    <p className="text-xs text-gray-500 mt-1">Laddar upp bild...</p>
-  )}
+            {newMachineImageUrl && (
+              <div className="mt-2">
+                <p className="text-xs text-emerald-700">Bild uppladdad ✅</p>
+                <img
+                  src={newMachineImageUrl}
+                  alt="Ny maskin"
+                  className="mt-2 w-full max-h-48 object-cover rounded-lg border"
+                />
 
-  {newMachineImageUrl && (
-    <div className="mt-2">
-      <p className="text-xs text-emerald-700">Bild uppladdad ✅</p>
-      <img
-        src={newMachineImageUrl}
-        alt="Ny maskin"
-        className="mt-2 w-full max-h-48 object-cover rounded-lg border"
-      />
-      <button
-        type="button"
-        onClick={() => setNewMachineImageUrl("")}
-        className="mt-2 text-xs px-3 py-1 rounded border border-slate-300"
-      >
-        Ta bort bild
-      </button>
-    </div>
-  )}
-</div>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={handleNewMachineAi}
+                    disabled={loadingNewMachineAi}
+                    className="text-xs bg-purple-600 text-white px-3 py-1 rounded disabled:opacity-60"
+                  >
+                    {loadingNewMachineAi ? "Läser av..." : "🔍 AI: fyll i modell & serienr"}
+                  </button>
 
+                  <button
+                    type="button"
+                    onClick={() => setNewMachineImageUrl("")}
+                    className="text-xs px-3 py-1 rounded border border-slate-300"
+                  >
+                    Ta bort bild
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
-          
           <form onSubmit={handleAddMachine} className="flex flex-col gap-3 mb-6">
             <input
               type="text"
@@ -677,35 +650,83 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
                     selectedMachine?.id === m.id ? "border-blue-500" : "border-slate-200"
                   }`}
                 >
-                  <p className="font-semibold">{m.name || "(utan namn)"}</p>
-                  <p className="text-sm text-gray-600">
-                    Modell: {m.model || "-"} • År: {m.year || "-"} • Timmar: {m.hours ?? "-"}
-                  </p>
+                  <div className="flex items-center gap-3">
+                    {m.image_url ? (
+                      <img
+                        src={m.image_url}
+                        alt={m.name || "maskin"}
+                        className="w-12 h-12 rounded object-cover border"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded bg-slate-100 border" />
+                    )}
+
+                    <div>
+                      <p className="font-semibold">{m.name || "(utan namn)"}</p>
+                      <p className="text-sm text-gray-600">
+                        Modell: {m.model || "-"} • År: {m.year || "-"} • Timmar: {m.hours ?? "-"}
+                      </p>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
         </div>
 
-        {/* Right: Machine pass + events */}
+        {/* Right */}
         <div className="bg-white shadow-md rounded-xl p-6">
           {!selectedMachine ? (
-            <p>Välj en maskin till vänster för att se historik.</p>
+            <p>Välj en maskin till vänster för att se historik och AI-skick.</p>
           ) : (
             <>
               <h2 className="text-xl font-semibold mb-2">Maskinpass: {selectedMachine.name}</h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-gray-600 mb-3">
                 Modell: {selectedMachine.model || "-"} • Serienr: {selectedMachine.serial_number || "-"}
               </p>
 
-              {/* ADD EVENT + VERIFY */}
+              {selectedMachine.image_url && (
+                <img
+                  src={selectedMachine.image_url}
+                  alt={selectedMachine.name || "maskin"}
+                  className="w-full max-h-56 object-cover rounded-lg border mb-3"
+                />
+              )}
+
+              {/* AI condition */}
+              <div className="mb-4 space-y-2">
+                <button
+                  type="button"
+                  onClick={handleCondition}
+                  disabled={loadingCondition}
+                  className="text-xs bg-emerald-700 text-white px-3 py-1 rounded disabled:opacity-60"
+                >
+                  {loadingCondition ? "AI bedömer skick..." : "🧠 AI-bedöm skick från bild"}
+                </button>
+
+                {condition && (
+                  <div className="border rounded-lg p-3 bg-emerald-50">
+                    <p className="text-sm font-semibold">
+                      Skick: {condition.condition_label} ({condition.condition_score}/5)
+                    </p>
+                    {condition.notes && <p className="text-xs text-gray-700 mt-1">{condition.notes}</p>}
+                    {condition.risk_flags?.length > 0 && (
+                      <p className="text-[11px] text-red-700 mt-1">
+                        Risker: {condition.risk_flags.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Add event + verify */}
               <div className="border rounded-lg p-3 bg-slate-50 mb-4">
                 <h3 className="font-semibold mb-2">Lägg till händelse</h3>
 
                 <form onSubmit={handleAddEvent} className="flex flex-col gap-2">
                   <select
                     value={eventType}
-                    onChange={(e) => setEventType(e.target.value)}
+                    onChange={(e) => setEventType(e.target.value as EventType)}
                     className="border rounded px-2 py-2"
                   >
                     <option value="service">Service</option>
@@ -733,7 +754,7 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
                   <button
                     type="button"
                     onClick={handleVerifyChain}
-                    disabled={verifying || !selectedMachine}
+                    disabled={verifying}
                     className="text-xs bg-emerald-600 text-white px-3 py-1 rounded disabled:opacity-60"
                   >
                     {verifying ? "Verifierar..." : "Verifiera kedja"}
@@ -754,35 +775,8 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
                   )}
                 </div>
               </div>
-<div className="mb-4 space-y-2">
-  <button
-    type="button"
-    onClick={handleCondition}
-    disabled={loadingCondition}
-    className="text-xs bg-emerald-700 text-white px-3 py-1 rounded disabled:opacity-60"
-  >
-    {loadingCondition ? "AI bedömer skick..." : "🧠 AI-bedöm skick från bild"}
-  </button>
 
-  {condition && (
-    <div className="border rounded-lg p-3 bg-emerald-50">
-      <p className="text-sm font-semibold">
-        Skick: {condition.condition_label} ({condition.condition_score}/5)
-      </p>
-      {condition.notes && (
-        <p className="text-xs text-gray-700 mt-1">{condition.notes}</p>
-      )}
-      {condition.risk_flags?.length > 0 && (
-        <p className="text-[11px] text-red-700 mt-1">
-          Risker: {condition.risk_flags.join(", ")}
-        </p>
-      )}
-    </div>
-  )}
-</div>
-
-
-              
+              {/* Events list */}
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold">Historik</h3>
                 <button
@@ -809,19 +803,7 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
                           {new Date(ev.created_at).toLocaleString()}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-700 mt-1 whitespace-pre-line">
-                        {ev.description}
-                      </p>
-                      {ev.hash && (
-                        <p className="text-[10px] text-gray-500 break-all mt-2">
-                          Hash: {ev.hash}
-                        </p>
-                      )}
-                      {ev.previous_hash && (
-                        <p className="text-[10px] text-gray-400 break-all">
-                          Prev: {ev.previous_hash}
-                        </p>
-                      )}
+                      <p className="text-sm text-gray-700 mt-1 whitespace-pre-line">{ev.description}</p>
                     </li>
                   ))}
                 </ul>
@@ -831,14 +813,12 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
         </div>
       </section>
 
-      {/* LEAD / VALUATION */}
+      {/* LEAD */}
       <section className="w-full max-w-5xl bg-white shadow-md rounded-xl p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
           <div>
             <h2 className="text-xl font-semibold">Skicka in för värdering</h2>
-            <p className="text-sm text-gray-600">
-              Välj maskintyp och fyll i. Vi sparar som lead via servern.
-            </p>
+            <p className="text-sm text-gray-600">Välj maskintyp och fyll i. Sparas som lead via servern.</p>
           </div>
 
           <div className="flex gap-2">
@@ -868,84 +848,42 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
         </div>
 
         <form onSubmit={handleLeadSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* left column */}
+          {/* left */}
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium">Brand</label>
-              <input
-                value={brand}
-                onChange={(e) => setBrand(e.target.value)}
-                className="border px-2 py-2 w-full rounded"
-                placeholder="Volvo"
-              />
+              <input value={brand} onChange={(e) => setBrand(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder="Volvo" />
             </div>
 
             <div>
               <label className="block text-sm font-medium">Model</label>
-              <input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="border px-2 py-2 w-full rounded"
-                placeholder={machineType === "excavator" ? "EC140" : "L70H"}
-              />
+              <input value={model} onChange={(e) => setModel(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder={machineType === "excavator" ? "EC140" : "L70H"} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium">Årsmodell</label>
-                <input
-                  type="number"
-                  value={year}
-                  onChange={(e) => setYear(e.target.value)}
-                  className="border px-2 py-2 w-full rounded"
-                  placeholder="2018"
-                />
+                <input type="number" value={year} onChange={(e) => setYear(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder="2018" />
               </div>
               <div>
                 <label className="block text-sm font-medium">Timmar</label>
-                <input
-                  type="number"
-                  value={hours}
-                  onChange={(e) => setHours(e.target.value)}
-                  className="border px-2 py-2 w-full rounded"
-                  placeholder="6500"
-                />
+                <input type="number" value={hours} onChange={(e) => setHours(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder="6500" />
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium">Plats</label>
-              <input
-                value={locationText}
-                onChange={(e) => setLocationText(e.target.value)}
-                className="border px-2 py-2 w-full rounded"
-                placeholder="Tromsø"
-              />
+              <input value={locationText} onChange={(e) => setLocationText(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder="Tromsø" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium">Uppskattat värde (NOK)</label>
-                <input
-                  type="number"
-                  value={valueEstimate}
-                  onChange={(e) => setValueEstimate(e.target.value)}
-                  className="border px-2 py-2 w-full rounded"
-                  placeholder="750000"
-                />
+                <input type="number" value={valueEstimate} onChange={(e) => setValueEstimate(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder="750000" />
               </div>
-
               <div>
                 <label className="block text-sm font-medium">Skick (1–5)</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={5}
-                  value={conditionScore}
-                  onChange={(e) => setConditionScore(e.target.value)}
-                  className="border px-2 py-2 w-full rounded"
-                  placeholder="4"
-                />
+                <input type="number" min={1} max={5} value={conditionScore} onChange={(e) => setConditionScore(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder="4" />
               </div>
             </div>
 
@@ -956,127 +894,66 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium">Viktklass (t.ex. 14t)</label>
-                    <input
-                      value={exWeightClass}
-                      onChange={(e) => setExWeightClass(e.target.value)}
-                      className="border px-2 py-2 w-full rounded"
-                      placeholder="14t"
-                    />
+                    <input value={exWeightClass} onChange={(e) => setExWeightClass(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder="14t" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium">Undercarriage %</label>
-                    <input
-                      value={exUndercarriage}
-                      onChange={(e) => setExUndercarriage(e.target.value)}
-                      className="border px-2 py-2 w-full rounded"
-                      placeholder="60"
-                    />
+                    <input value={exUndercarriage} onChange={(e) => setExUndercarriage(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder="60" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium">Bandtyp</label>
-                    <select
-                      value={exTracksType}
-                      onChange={(e) => setExTracksType(e.target.value)}
-                      className="border px-2 py-2 w-full rounded"
-                    >
+                    <select value={exTracksType} onChange={(e) => setExTracksType(e.target.value)} className="border px-2 py-2 w-full rounded">
                       <option value="steel">Stålband</option>
                       <option value="rubber">Gummiband</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium">Skopstorlek (liter)</label>
-                    <input
-                      type="number"
-                      value={exBucketSize}
-                      onChange={(e) => setExBucketSize(e.target.value)}
-                      className="border px-2 py-2 w-full rounded"
-                      placeholder="700"
-                    />
+                    <input type="number" value={exBucketSize} onChange={(e) => setExBucketSize(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder="700" />
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-3 text-sm">
                   <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={exQuickCoupler}
-                      onChange={(e) => setExQuickCoupler(e.target.checked)}
-                    />
+                    <input type="checkbox" checked={exQuickCoupler} onChange={(e) => setExQuickCoupler(e.target.checked)} />
                     Snabbfäste
                   </label>
-
                   <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={exRototilt}
-                      onChange={(e) => setExRototilt(e.target.checked)}
-                    />
+                    <input type="checkbox" checked={exRototilt} onChange={(e) => setExRototilt(e.target.checked)} />
                     Rototilt
                   </label>
-
                   <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={exExtraHydraulics}
-                      onChange={(e) => setExExtraHydraulics(e.target.checked)}
-                    />
+                    <input type="checkbox" checked={exExtraHydraulics} onChange={(e) => setExExtraHydraulics(e.target.checked)} />
                     Extra hydraulik
                   </label>
                 </div>
-
-                <p className="text-xs text-gray-600">
-                  (Detta skickas som <code>machine_payload</code>.)
-                </p>
               </div>
             )}
           </div>
 
-          {/* right column */}
+          {/* right */}
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium">Namn</label>
-              <input
-                value={leadName}
-                onChange={(e) => setLeadName(e.target.value)}
-                className="border px-2 py-2 w-full rounded"
-                placeholder="Ditt namn"
-                required
-              />
+              <input value={leadName} onChange={(e) => setLeadName(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder="Ditt namn" required />
             </div>
 
             <div>
               <label className="block text-sm font-medium">E-post</label>
-              <input
-                type="email"
-                value={leadEmail}
-                onChange={(e) => setLeadEmail(e.target.value)}
-                className="border px-2 py-2 w-full rounded"
-                placeholder="du@example.com"
-                required
-              />
+              <input type="email" value={leadEmail} onChange={(e) => setLeadEmail(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder="du@example.com" required />
             </div>
 
             <div>
               <label className="block text-sm font-medium">Telefon</label>
-              <input
-                value={leadPhone}
-                onChange={(e) => setLeadPhone(e.target.value)}
-                className="border px-2 py-2 w-full rounded"
-                placeholder="+47 …"
-              />
+              <input value={leadPhone} onChange={(e) => setLeadPhone(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder="+47 …" />
             </div>
 
             <div>
               <label className="block text-sm font-medium">Meddelande</label>
-              <textarea
-                value={leadMessage}
-                onChange={(e) => setLeadMessage(e.target.value)}
-                className="border px-2 py-2 w-full rounded min-h-[110px]"
-                placeholder="Beskriv maskinen, extrautrustning, fel osv."
-              />
+              <textarea value={leadMessage} onChange={(e) => setLeadMessage(e.target.value)} className="border px-2 py-2 w-full rounded min-h-[110px]" placeholder="Beskriv maskinen, extrautrustning, fel osv." />
             </div>
 
             {machineType === "excavator" && (
@@ -1086,68 +963,36 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium">Estimat low (NOK)</label>
-                    <input
-                      type="number"
-                      value={estimateLow}
-                      onChange={(e) => setEstimateLow(e.target.value)}
-                      className="border px-2 py-2 w-full rounded"
-                      placeholder="450000"
-                    />
+                    <input type="number" value={estimateLow} onChange={(e) => setEstimateLow(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder="450000" />
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium">Estimat high (NOK)</label>
-                    <input
-                      type="number"
-                      value={estimateHigh}
-                      onChange={(e) => setEstimateHigh(e.target.value)}
-                      className="border px-2 py-2 w-full rounded"
-                      placeholder="550000"
-                    />
+                    <input type="number" value={estimateHigh} onChange={(e) => setEstimateHigh(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder="550000" />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium">Estimat note</label>
-                  <input
-                    value={estimateNote}
-                    onChange={(e) => setEstimateNote(e.target.value)}
-                    className="border px-2 py-2 w-full rounded"
-                    placeholder="ex: inkl. 2 skopor, rototilt, 60% UC"
-                  />
+                  <input value={estimateNote} onChange={(e) => setEstimateNote(e.target.value)} className="border px-2 py-2 w-full rounded" placeholder="ex: inkl. 2 skopor, rototilt, 60% UC" />
                 </div>
-
-                <p className="text-xs text-gray-600">
-                  (Skickas som <code>estimate_low</code>, <code>estimate_high</code>,{" "}
-                  <code>estimate_note</code>.)
-                </p>
               </div>
             )}
 
-            <button
-              type="submit"
-              className="px-4 py-3 rounded bg-black text-white font-semibold disabled:opacity-60 w-full"
-              disabled={leadSubmitting}
-            >
+            <button type="submit" className="px-4 py-3 rounded bg-black text-white font-semibold disabled:opacity-60 w-full" disabled={leadSubmitting}>
               {leadSubmitting ? "Skickar..." : "Skicka förfrågan"}
             </button>
 
             {leadError && <p className="text-xs text-red-500">{leadError}</p>}
-            {leadSent && !leadError && (
-              <p className="text-xs text-emerald-600">
-                Tack! Din förfrågan är mottagen – vi hör av oss.
-              </p>
-            )}
+            {leadSent && !leadError && <p className="text-xs text-emerald-600">Tack! Din förfrågan är mottagen – vi hör av oss.</p>}
           </div>
         </form>
       </section>
 
       <footer className="text-xs text-gray-500">
-        API: <code>/api/machines</code>, <code>/api/machines/create</code>,{" "}
-        <code>/api/machines/events</code>, <code>/api/machines/events/create</code>,{" "}
-        <code>/api/machines/events/verify</code>, <code>/api/lead</code>
+        API: <code>/api/machines</code>, <code>/api/machines/create</code>, <code>/api/machines/events</code>,{" "}
+        <code>/api/machines/events/create</code>, <code>/api/machines/events/verify</code>,{" "}
+        <code>/api/lead</code>, <code>/api/ai-scan</code>, <code>/api/condition</code>
       </footer>
     </main>
   );
 }
-
