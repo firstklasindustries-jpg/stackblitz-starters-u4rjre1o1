@@ -51,6 +51,49 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  
+const updateLeadStatus = async (id: string, status: LeadStatus) => {
+  setError(null);
+  setUpdatingId(id);
+
+  const key = (savedKey || "").trim();
+  if (!key) {
+    setError("ADMIN_KEY saknas. Fyll i nyckeln och klicka Spara.");
+    setUpdatingId(null);
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/admin/leads/status", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": key,
+      },
+      body: JSON.stringify({ id, status }),
+    });
+
+    const text = await res.text();
+    let json: any;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new Error(`API svarade inte JSON. Status ${res.status}. Body: ${text.slice(0, 160)}`);
+    }
+
+    if (!json.ok) throw new Error(json.error || "Kunde inte uppdatera status.");
+
+    // uppdatera lokalt
+    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, status } : l)));
+  } catch (e: any) {
+    console.error(e);
+    setError(e?.message || "Kunde inte uppdatera status.");
+  } finally {
+    setUpdatingId(null);
+  }
+};
+
 
   const keyPresent = useMemo(() => (savedKey || "").length > 0, [savedKey]);
 
