@@ -188,8 +188,58 @@ const [wlEstimateNote, setWlEstimateNote] = useState<string>("");
       setLoadingMachines(false);
     }
   };
-
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+const excavatorProScore = useMemo(() => {
+  let score = 0;
+
+  // Utrustning (störst påverkan)
+  if (exQuickCoupler) score += 2;
+  if (exRototilt) score += 3;
+  if (exExtraHydraulics) score += 1;
+
+  // Undercarriage % (om ifyllt)
+  const uc = exUndercarriage ? Number(exUndercarriage) : NaN;
+  if (Number.isFinite(uc)) {
+    if (uc >= 80) score += 2;
+    else if (uc >= 60) score += 1;
+    else if (uc >= 40) score += 0;
+    else score -= 1;
+  }
+
+  // Bandtyp (små justeringar)
+  if (exTracksType === "steel") score += 1;
+  if (exTracksType === "rubber") score += 0; // neutralt
+
+  // Skopa (om ifyllt)
+  const bucket = exBucketSize ? Number(exBucketSize) : NaN;
+  if (Number.isFinite(bucket)) {
+    if (bucket >= 800) score += 1;
+    else if (bucket >= 500) score += 0;
+    else score -= 0; // neutralt
+  }
+
+  // Viktklass ifylld = lite plus (signal: mer komplett lead)
+  if (exWeightClass && exWeightClass.trim().length > 0) score += 1;
+
+  return clamp(score, 0, 10);
+}, [
+  exQuickCoupler,
+  exRototilt,
+  exExtraHydraulics,
+  exUndercarriage,
+  exTracksType,
+  exBucketSize,
+  exWeightClass,
+]);
+
+const excavatorProLabel = useMemo(() => {
+  if (excavatorProScore >= 8) return "TOP SPEC 🔥";
+  if (excavatorProScore >= 5) return "Bra spec ✅";
+  if (excavatorProScore >= 3) return "Standard";
+  return "Bas / osäkert";
+}, [excavatorProScore]);
+
 
 const wheelLoaderProScore = useMemo(() => {
   // Poänglogik (0–10). Håll det stabilt och begripligt.
