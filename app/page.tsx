@@ -189,6 +189,53 @@ const [wlEstimateNote, setWlEstimateNote] = useState<string>("");
     }
   };
 
+const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+const wheelLoaderProScore = useMemo(() => {
+  // Poänglogik (0–10). Håll det stabilt och begripligt.
+  let score = 0;
+
+  // Utrustning (störst påverkan)
+  if (wlQuickCoupler) score += 2;
+  if (wlThirdFunction) score += 2;
+  if (wlCentralLube) score += 1;
+  if (wlWeighingSystem) score += 1;
+  if (wlRearCamera) score += 1;
+
+  // Mekaniskt skick
+  if (!wlArticulationPlay) score += 1; // inget glapp = plus
+  if (wlLeakage === "none") score += 1;
+  else if (wlLeakage === "some") score += 0; // neutralt
+  else score -= 1;
+
+  // Däck % (om du fyllt i)
+  const tire = wlTirePercent ? Number(wlTirePercent) : NaN;
+  if (Number.isFinite(tire)) {
+    if (tire >= 70) score += 1;
+    else if (tire >= 40) score += 0;
+    else score -= 1;
+  }
+
+  return clamp(score, 0, 10);
+}, [
+  wlQuickCoupler,
+  wlThirdFunction,
+  wlCentralLube,
+  wlWeighingSystem,
+  wlRearCamera,
+  wlArticulationPlay,
+  wlLeakage,
+  wlTirePercent,
+]);
+
+const wheelLoaderProLabel = useMemo(() => {
+  if (wheelLoaderProScore >= 8) return "TOP SPEC 🔥";
+  if (wheelLoaderProScore >= 5) return "Bra spec ✅";
+  if (wheelLoaderProScore >= 3) return "Standard";
+  return "Bas / osäkert";
+}, [wheelLoaderProScore]);
+
+  
   const handleSelectMachine = (m: Machine) => {
     setSelectedMachine(m);
     setEvents([]);
@@ -526,6 +573,8 @@ if (machineType === "wheel_loader") {
       bucket_size_liters: wlBucketSize ? toNumOrNull(wlBucketSize) : null,
       tire_percent: wlTirePercent ? toNumOrNull(wlTirePercent) : null,
       articulation_play: wlArticulationPlay,
+pro_score: wheelLoaderProScore,
+pro_label: wheelLoaderProLabel,
 
       quick_coupler: wlQuickCoupler,
       third_function: wlThirdFunction,
@@ -993,6 +1042,28 @@ if (machineType === "wheel_loader") {
         <form onSubmit={handleLeadSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* LEFT: machine fields */}
          {machineType === "wheel_loader" && (
+      <div className="flex items-center justify-between">
+  <p className="text-sm font-semibold">Hjullastare – extra info</p>
+
+  <div className="flex items-center gap-2">
+    <span className="text-xs text-gray-600">Pro score</span>
+    <span className="text-xs font-semibold px-2 py-1 rounded-full border bg-white">
+      {wheelLoaderProScore}/10 – {wheelLoaderProLabel}
+    </span>
+  </div>
+</div>
+
+<div className="h-2 w-full rounded bg-white border overflow-hidden">
+  <div
+    className="h-full bg-slate-900"
+    style={{ width: `${wheelLoaderProScore * 10}%` }}
+  />
+</div>
+
+<p className="text-[11px] text-gray-600">
+  Score baseras på utrustning + glapp/läckage + däck. Bara en MVP-indikator.
+</p>
+
   <div className="border rounded-lg p-3 bg-slate-50 space-y-3">
     <p className="text-sm font-semibold">Hjullastare – extra info</p>
 
