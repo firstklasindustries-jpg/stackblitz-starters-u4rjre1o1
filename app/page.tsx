@@ -655,6 +655,9 @@ pro_label: wheelLoaderProLabel,
         rototilt: exRototilt,
         bucket_size_liters: exBucketSize ? toNumOrNull(exBucketSize) : null,
         extra_hydraulics: exExtraHydraulics,
+         // NEW:
+  pro_score: excavatorProScore,
+  pro_label: excavatorProLabel,
       },
       estimate_low: estimateLow ? toNumOrNull(estimateLow) : null,
       estimate_high: estimateHigh ? toNumOrNull(estimateHigh) : null,
@@ -1254,6 +1257,28 @@ pro_label: wheelLoaderProLabel,
                 placeholder={machineType === "excavator" ? "EC140" : "L70H"}
               />
             </div>
+            <div className="flex items-center justify-between">
+  <p className="text-sm font-semibold">Grävmaskin – extra info</p>
+
+  <div className="flex items-center gap-2">
+    <span className="text-xs text-gray-600">Pro score</span>
+    <span className="text-xs font-semibold px-2 py-1 rounded-full border bg-white">
+      {excavatorProScore}/10 – {excavatorProLabel}
+    </span>
+  </div>
+</div>
+
+<div className="h-2 w-full rounded bg-white border overflow-hidden">
+  <div
+    className="h-full bg-slate-900"
+    style={{ width: `${excavatorProScore * 10}%` }}
+  />
+</div>
+
+<p className="text-[11px] text-gray-600">
+  Score baseras på rototilt/snabbfäste + UC% + bandtyp + info-nivå. MVP-indikator.
+</p>
+
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -1411,6 +1436,9 @@ pro_label: wheelLoaderProLabel,
                 required
               />
             </div>
+<p className="text-[11px] text-gray-600">
+  Pro score: <span className="font-semibold">{excavatorProScore}/10</span> – {excavatorProLabel}
+</p>
 
             <div>
               <label className="block text-sm font-medium">E-post</label>
