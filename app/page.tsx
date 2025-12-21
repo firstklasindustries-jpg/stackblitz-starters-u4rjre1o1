@@ -127,6 +127,23 @@ export default function Home() {
   const [valueEstimate, setValueEstimate] = useState<string>("");
   const [conditionScore, setConditionScore] = useState<string>("");
 
+  // wheel loader extras
+const [wlWeightClass, setWlWeightClass] = useState<string>(""); // e.g. 20t
+const [wlBucketSize, setWlBucketSize] = useState<string>(""); // liters
+const [wlTirePercent, setWlTirePercent] = useState<string>(""); // 0-100
+const [wlArticulationPlay, setWlArticulationPlay] = useState<boolean>(false);
+
+const [wlQuickCoupler, setWlQuickCoupler] = useState<boolean>(true);
+const [wlThirdFunction, setWlThirdFunction] = useState<boolean>(false);
+const [wlCentralLube, setWlCentralLube] = useState<boolean>(false);
+const [wlWeighingSystem, setWlWeighingSystem] = useState<boolean>(false);
+const [wlRearCamera, setWlRearCamera] = useState<boolean>(false);
+
+const [wlTransmission, setWlTransmission] = useState<string>("powershift"); // powershift/cvt/hydro/unknown
+const [wlLeakage, setWlLeakage] = useState<string>("none"); // none/some/much
+const [wlTireType, setWlTireType] = useState<string>("industrial"); // summer/winter/industrial/chains
+
+  
   // Excavator extras
   const [exWeightClass, setExWeightClass] = useState<string>("");
   const [exUndercarriage, setExUndercarriage] = useState<string>("");
@@ -496,14 +513,27 @@ export default function Home() {
     };
 
     if (machineType === "wheel_loader") {
-      return {
-        ...base,
-        machine_type: "wheel_loader",
-        machine_payload: {
-          notes: "wheel_loader_form",
-        },
-      };
-    }
+  return {
+    ...base,
+    machine_type: "wheel_loader",
+    machine_payload: {
+      weight_class: wlWeightClass || null,
+      bucket_size_liters: wlBucketSize ? toNumOrNull(wlBucketSize) : null,
+      tire_percent: wlTirePercent ? toNumOrNull(wlTirePercent) : null,
+      articulation_play: wlArticulationPlay,
+
+      quick_coupler: wlQuickCoupler,
+      third_function: wlThirdFunction,
+      central_lube: wlCentralLube,
+      weighing_system: wlWeighingSystem,
+      rear_camera: wlRearCamera,
+
+      transmission: wlTransmission,
+      leakage: wlLeakage,
+      tire_type: wlTireType,
+    },
+  };
+}
 
     return {
       ...base,
@@ -952,6 +982,127 @@ export default function Home() {
 
         <form onSubmit={handleLeadSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* LEFT: machine fields */}
+         {machineType === "wheel_loader" && (
+  <div className="border rounded-lg p-3 bg-slate-50 space-y-3">
+    <p className="text-sm font-semibold">Hjullastare – extra info</p>
+
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <label className="block text-sm font-medium">Viktklass (t.ex. 20t)</label>
+        <input
+          value={wlWeightClass}
+          onChange={(e) => setWlWeightClass(e.target.value)}
+          className="border px-2 py-2 w-full rounded"
+          placeholder="20t"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium">Skopvolym (liter)</label>
+        <input
+          type="number"
+          value={wlBucketSize}
+          onChange={(e) => setWlBucketSize(e.target.value)}
+          className="border px-2 py-2 w-full rounded"
+          placeholder="3000"
+        />
+      </div>
+    </div>
+
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <label className="block text-sm font-medium">Däck % kvar</label>
+        <input
+          type="number"
+          value={wlTirePercent}
+          onChange={(e) => setWlTirePercent(e.target.value)}
+          className="border px-2 py-2 w-full rounded"
+          placeholder="60"
+          min={0}
+          max={100}
+        />
+      </div>
+
+      <div className="flex items-center gap-2 pt-6">
+        <input
+          type="checkbox"
+          checked={wlArticulationPlay}
+          onChange={(e) => setWlArticulationPlay(e.target.checked)}
+        />
+        <span className="text-sm">Midjeglapp</span>
+      </div>
+    </div>
+
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <label className="block text-sm font-medium">Transmission</label>
+        <select
+          value={wlTransmission}
+          onChange={(e) => setWlTransmission(e.target.value)}
+          className="border px-2 py-2 w-full rounded"
+        >
+          <option value="powershift">Powershift</option>
+          <option value="cvt">CVT</option>
+          <option value="hydro">Hydrostat</option>
+          <option value="unknown">Vet ej</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium">Läckage</label>
+        <select
+          value={wlLeakage}
+          onChange={(e) => setWlLeakage(e.target.value)}
+          className="border px-2 py-2 w-full rounded"
+        >
+          <option value="none">Inget</option>
+          <option value="some">Lite</option>
+          <option value="much">Mycket</option>
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label className="block text-sm font-medium">Däcktyp</label>
+      <select
+        value={wlTireType}
+        onChange={(e) => setWlTireType(e.target.value)}
+        className="border px-2 py-2 w-full rounded"
+      >
+        <option value="summer">Sommar</option>
+        <option value="winter">Vinter</option>
+        <option value="industrial">Industri</option>
+        <option value="chains">Kedjor</option>
+      </select>
+    </div>
+
+    <div className="flex flex-wrap gap-3 text-sm">
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={wlQuickCoupler} onChange={(e) => setWlQuickCoupler(e.target.checked)} />
+        Snabbfäste
+      </label>
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={wlThirdFunction} onChange={(e) => setWlThirdFunction(e.target.checked)} />
+        3:e funktion
+      </label>
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={wlCentralLube} onChange={(e) => setWlCentralLube(e.target.checked)} />
+        Centralsmörjning
+      </label>
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={wlWeighingSystem} onChange={(e) => setWlWeighingSystem(e.target.checked)} />
+        Vågsystem
+      </label>
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={wlRearCamera} onChange={(e) => setWlRearCamera(e.target.checked)} />
+        Backkamera
+      </label>
+    </div>
+
+    <p className="text-xs text-gray-600">(Skickas som <code>machine_payload</code>.)</p>
+  </div>
+)}
+
+          
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium">Brand</label>
