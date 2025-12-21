@@ -143,6 +143,11 @@ const [wlTransmission, setWlTransmission] = useState<string>("powershift"); // p
 const [wlLeakage, setWlLeakage] = useState<string>("none"); // none/some/much
 const [wlTireType, setWlTireType] = useState<string>("industrial"); // summer/winter/industrial/chains
 
+  // wheel loader estimate range (optional)
+const [wlEstimateLow, setWlEstimateLow] = useState<string>("");
+const [wlEstimateHigh, setWlEstimateHigh] = useState<string>("");
+const [wlEstimateNote, setWlEstimateNote] = useState<string>("");
+
   
   // Excavator extras
   const [exWeightClass, setExWeightClass] = useState<string>("");
@@ -1312,6 +1317,48 @@ const [wlTireType, setWlTireType] = useState<string>("industrial"); // summer/wi
                 placeholder="Beskriv maskinen, extrautrustning, fel osv."
               />
             </div>
+{machineType === "wheel_loader" && (
+  <div className="border rounded-lg p-3 bg-amber-50 space-y-3">
+    <p className="text-sm font-semibold">Hjullastare – estimat (valfritt)</p>
+
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <label className="block text-sm font-medium">Estimat low (NOK)</label>
+        <input
+          type="number"
+          value={wlEstimateLow}
+          onChange={(e) => setWlEstimateLow(e.target.value)}
+          className="border px-2 py-2 w-full rounded"
+          placeholder="650000"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium">Estimat high (NOK)</label>
+        <input
+          type="number"
+          value={wlEstimateHigh}
+          onChange={(e) => setWlEstimateHigh(e.target.value)}
+          className="border px-2 py-2 w-full rounded"
+          placeholder="850000"
+        />
+      </div>
+    </div>
+
+    <div>
+      <label className="block text-sm font-medium">Estimat note</label>
+      <input
+        value={wlEstimateNote}
+        onChange={(e) => setWlEstimateNote(e.target.value)}
+        className="border px-2 py-2 w-full rounded"
+        placeholder="ex: däck 60%, centralsmörjning, våg, 3:e funktion"
+      />
+    </div>
+
+    <p className="text-xs text-gray-600">
+      (Skickas som <code>estimate_low</code>, <code>estimate_high</code>, <code>estimate_note</code>.)
+    </p>
+  </div>
+)}
 
             {machineType === "excavator" && (
               <div className="border rounded-lg p-3 bg-amber-50 space-y-3">
