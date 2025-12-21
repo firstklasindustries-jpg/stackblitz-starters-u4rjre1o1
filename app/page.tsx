@@ -278,30 +278,37 @@ export default function Home() {
   };
 
   // ---------- Add machine (with optional image_url) ----------
-  const handleNewMachineImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+ const handleNewMachineImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-    setError(null);
-    setUploadingNewMachineImage(true);
+  setError(null);
+  setUploadingNewMachineImage(true);
 
-    try {
-      const filePath = `new/${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from("machine-images")
-        .upload(filePath, file);
+  try {
+    const filePath = `new/${Date.now()}-${file.name}`;
 
-      if (uploadError) throw uploadError;
+    const { error: uploadError } = await supabase.storage
+      .from("machine-images")
+      .upload(filePath, file);
 
-      const { data } = supabase.storage.from("machine-images").getPublicUrl(filePath);
-      setNewMachineImageUrl(data.publicUrl);
-    } catch (err: any) {
-      console.error(err);
-      setError("Kunde inte ladda upp bild för ny maskin.");
-    } finally {
-      setUploadingNewMachineImage(false);
-    }
-  };
+    if (uploadError) throw uploadError;
+
+    const { data: publicData } = supabase.storage
+      .from("machine-images")
+      .getPublicUrl(filePath);
+
+    const publicUrl = publicData.publicUrl;
+
+    setNewMachineImageUrl(publicUrl); // <-- VIKTIG
+  } catch (err: any) {
+    console.error(err);
+    setError("Kunde inte ladda upp bild.");
+  } finally {
+    setUploadingNewMachineImage(false);
+  }
+};
+
 
   const handleNewMachineAi = async () => {
     if (!newMachineImageUrl) {
