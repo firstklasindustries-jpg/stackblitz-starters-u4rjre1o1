@@ -517,7 +517,7 @@ const [wlEstimateNote, setWlEstimateNote] = useState<string>("");
       conditionScore: conditionScore ? toNumOrNull(conditionScore) : null,
     };
 
-    if (machineType === "wheel_loader") {
+if (machineType === "wheel_loader") {
   return {
     ...base,
     machine_type: "wheel_loader",
@@ -537,6 +537,11 @@ const [wlEstimateNote, setWlEstimateNote] = useState<string>("");
       leakage: wlLeakage,
       tire_type: wlTireType,
     },
+
+    // NEW: matchar grävmaskinens fält (valfritt)
+    estimate_low: wlEstimateLow ? toNumOrNull(wlEstimateLow) : null,
+    estimate_high: wlEstimateHigh ? toNumOrNull(wlEstimateHigh) : null,
+    estimate_note: wlEstimateNote.trim() || null,
   };
 }
 
