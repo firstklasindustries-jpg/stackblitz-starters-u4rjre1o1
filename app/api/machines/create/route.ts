@@ -17,26 +17,35 @@ export async function POST(req: Request) {
     }
 
     const supabase = createClient(url, key, { auth: { persistSession: false } });
-
     const body = await req.json();
 
-    const { error } = await supabase.from("machines").insert([
-      {
-        name: body.name ?? null,
-        model: body.model ?? null,
-        serial_number: body.serial_number ?? null,
-        year: typeof body.year === "number" ? body.year : null,
-        hours: typeof body.hours === "number" ? body.hours : null,
-        image_url: body.image_url ?? null, // <-- VIKTIG
-      },
-    ]);
+    const year =
+      typeof body.year === "number" && Number.isFinite(body.year) ? body.year : null;
+    const hours =
+      typeof body.hours === "number" && Number.isFinite(body.hours) ? body.hours : null;
+
+    const insertRow = {
+      name: typeof body.name === "string" ? body.name.trim() || null : null,
+      model: typeof body.model === "string" ? body.model.trim() || null : null,
+      serial_number:
+        typeof body.serial_number === "string" ? body.serial_number.trim() || null : null,
+      year,
+      hours,
+      image_url: typeof body.image_url === "string" ? body.image_url : null,
+    };
+
+    const { data, error } = await supabase
+      .from("machines")
+      .insert([insertRow])
+      .select("id, name, model, serial_number, created_at, image_url, year, hours")
+      .maybeSingle();
 
     if (error) {
-      console.error("machines/create insert error:", error);
+      console.error("machines/create insert error:", error, { insertRow });
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, machine: data });
   } catch (e: any) {
     console.error("machines/create server error:", e);
     return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
