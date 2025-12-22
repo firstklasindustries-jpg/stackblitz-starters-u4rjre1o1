@@ -48,6 +48,8 @@ const toNumOrNull = (v: string) => {
 export default function Home() {
   // ---------- global ----------
   const [error, setError] = useState<string | null>(null);
+const [newMachineImageUrl, setNewMachineImageUrl] = useState<string | null>(null);
+const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
 
   // ---------- machines ----------
   const [machines, setMachines] = useState<Machine[]>([]);
@@ -752,6 +754,41 @@ export default function Home() {
         {/* Left */}
         <div className="bg-white shadow-md rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-3">Lägg till maskin</h2>
+{/* NY MASKIN – BILD */}
+<div className="mb-4">
+  <p className="text-sm font-semibold mb-1">Bild (valfritt)</p>
+
+  <input
+    type="file"
+    accept="image/*"
+    onChange={handleNewMachineImageChange}
+    className="text-sm"
+  />
+
+  {uploadingNewMachineImage && (
+    <p className="text-xs text-gray-500 mt-1">Laddar upp bild...</p>
+  )}
+
+  {newMachineImageUrl ? (
+    <div className="mt-3 border rounded-lg p-3 bg-emerald-50">
+      <p className="text-sm font-semibold text-emerald-800">Bild kopplad ✅</p>
+      <img
+        src={newMachineImageUrl}
+        alt="Ny maskin-bild"
+        className="mt-2 w-full max-h-48 object-cover rounded-md border"
+      />
+      <button
+        type="button"
+        onClick={() => setNewMachineImageUrl(null)}
+        className="mt-2 text-xs px-3 py-1 rounded border border-emerald-300 bg-white"
+      >
+        Ta bort bild
+      </button>
+    </div>
+  ) : (
+    <p className="text-xs text-gray-500 mt-2">Ingen bild vald ännu.</p>
+  )}
+</div>
 
           {/* AI-first image */}
           <div className="mb-4 border rounded-lg p-3 bg-slate-50">
