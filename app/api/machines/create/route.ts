@@ -18,6 +18,35 @@ export async function POST(req: Request) {
 
     const supabase = createClient(url, key, { auth: { persistSession: false } });
     const body = await req.json();
+const body = await req.json();
+
+const nowYear = new Date().getFullYear();
+
+// year
+let year: number | null = null;
+if (body.year !== null && body.year !== undefined && body.year !== "") {
+  const y = Number(body.year);
+  if (!Number.isFinite(y) || !Number.isInteger(y)) {
+    return NextResponse.json({ ok: false, error: "Årsmodell måste vara ett heltal." }, { status: 400 });
+  }
+  if (y < 1950 || y > nowYear + 1) {
+    return NextResponse.json({ ok: false, error: `Årsmodell måste vara mellan 1950 och ${nowYear + 1}.` }, { status: 400 });
+  }
+  year = y;
+}
+
+// hours
+let hours: number | null = null;
+if (body.hours !== null && body.hours !== undefined && body.hours !== "") {
+  const h = Number(body.hours);
+  if (!Number.isFinite(h) || h < 0) {
+    return NextResponse.json({ ok: false, error: "Timmar måste vara 0 eller högre." }, { status: 400 });
+  }
+  if (h > 200000) {
+    return NextResponse.json({ ok: false, error: "Timmar ser orimligt högt ut (max 200 000)." }, { status: 400 });
+  }
+  hours = h;
+}
 
     const year =
       typeof body.year === "number" && Number.isFinite(body.year) ? body.year : null;
@@ -40,8 +69,9 @@ export async function POST(req: Request) {
     name: body.name ?? null,
     model: body.model ?? null,
     serial_number: body.serial_number ?? null,
-    year: typeof body.year === "number" ? body.year : null,
-    hours: typeof body.hours === "number" ? body.hours : null,
+  year,
+hours,
+
     image_url: body.image_url ?? null,
   }])
   .select("*")
