@@ -352,50 +352,65 @@ export default function Home() {
     }
   };
 
-  const handleAddMachine = async (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
+ const handleAddMachine = async (e: FormEvent) => {
+  e.preventDefault();
+  setError(null);
 
-    if (!mName || !mModel || !mSerial) {
-      setError("Fyll i namn, modell och serienummer.");
-      return;
-    }
+  if (!mName || !mModel || !mSerial) {
+    setError("Fyll i namn, modell och serienummer.");
+    return;
+  }
 
-    setSavingMachine(true);
+  setSavingMachine(true);
 
-    try {
-      const res = await fetch("/api/machines/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: mName,
-          model: mModel,
-          serial_number: mSerial,
-          year: mYear ? Number(mYear) : null,
-          hours: mHours ? Number(mHours) : null,
-          image_url: newMachineImageUrl ?? null,
-        }),
-      });
+  try {
+    const yearNum = mYear.trim() ? Number(mYear) : null;
+    const hoursNum = mHours.trim() ? Number(mHours) : null;
 
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "Kunde inte spara maskin.");
+    const payload = {
+      name: mName,
+      model: mModel,
+      serial_number: mSerial,
+      year: yearNum !== null && Number.isFinite(yearNum) ? yearNum : null,
+      hours: hoursNum !== null && Number.isFinite(hoursNum) ? hoursNum : null,
+      image_url: newMachineImageUrl ?? null,
+    };
 
+    console.log("CREATE machine payload", payload);
+
+    const res = await fetch("/api/machines/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const json = await res.json();
+    console.log("CREATE response", json);
+
+    if (!json.ok) throw new Error(json.error || "Kunde inte spara maskin.");
+
+    if (json.machine) {
+      setMachines((prev) => [json.machine, ...prev]);
+    } else {
       await fetchMachines();
-
-      // reset
-      setMName("");
-      setMModel("");
-      setMSerial("");
-      setMYear("");
-      setMHours("");
-      setNewMachineImageUrl(null);
-    } catch (e: any) {
-      console.error(e);
-      setError(e?.message || "Kunde inte spara maskin.");
-    } finally {
-      setSavingMachine(false);
     }
-  };
+
+    // reset form
+    setMName("");
+    setMModel("");
+    setMSerial("");
+    setMYear("");
+    setMHours("");
+    // valfritt: reset bild för ny maskin
+    setNewMachineImageUrl(null);
+  } catch (err: any) {
+    console.error(err);
+    setError(err?.message || "Kunde inte spara maskin.");
+  } finally {
+    setSavingMachine(false);
+  }
+};
+
 
   // ---------- Events: create + verify (API) ----------
   const handleAddEvent = async (e: FormEvent) => {
