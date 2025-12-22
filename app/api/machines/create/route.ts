@@ -34,11 +34,19 @@ export async function POST(req: Request) {
       image_url: typeof body.image_url === "string" ? body.image_url : null,
     };
 
-    const { data, error } = await supabase
-      .from("machines")
-      .insert([insertRow])
-      .select("id, name, model, serial_number, created_at, image_url, year, hours")
-      .maybeSingle();
+  const { data, error } = await supabase
+  .from("machines")
+  .insert([{
+    name: body.name ?? null,
+    model: body.model ?? null,
+    serial_number: body.serial_number ?? null,
+    year: typeof body.year === "number" ? body.year : null,
+    hours: typeof body.hours === "number" ? body.hours : null,
+    image_url: body.image_url ?? null,
+  }])
+  .select("*")
+  .single();
+
 
     if (error) {
       console.error("machines/create insert error:", error, { insertRow });
