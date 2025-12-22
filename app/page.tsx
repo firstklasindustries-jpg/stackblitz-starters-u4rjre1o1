@@ -364,7 +364,34 @@ export default function Home() {
     try {
       const yearNum = mYear.trim() ? Number(mYear) : null;
       const hoursNum = mHours.trim() ? Number(mHours) : null;
+// ✅ HÅRD VALIDERING (frontend)
+const nowYear = new Date().getFullYear();
 
+if (yearNum !== null) {
+  if (!Number.isFinite(yearNum) || !Number.isInteger(yearNum)) {
+    setError("Årsmodell måste vara ett heltal (t.ex. 2018).");
+    setSavingMachine(false);
+    return;
+  }
+  if (yearNum < 1950 || yearNum > nowYear + 1) {
+    setError(`Årsmodell måste vara mellan 1950 och ${nowYear + 1}.`);
+    setSavingMachine(false);
+    return;
+  }
+}
+
+if (hoursNum !== null) {
+  if (!Number.isFinite(hoursNum) || hoursNum < 0) {
+    setError("Timmar måste vara 0 eller högre.");
+    setSavingMachine(false);
+    return;
+  }
+  if (hoursNum > 200000) {
+    setError("Timmar ser orimligt högt ut. Skriv rätt antal (max 200 000).");
+    setSavingMachine(false);
+    return;
+  }
+}
       const payload = {
         name: mName,
         model: mModel,
