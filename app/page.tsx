@@ -1,6 +1,6 @@
 "use client";
 
-import React, { FormEvent, useEffect, useMemo, useState, ChangeEvent } from "react";
+import React, { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 type Machine = {
@@ -48,8 +48,6 @@ const toNumOrNull = (v: string) => {
 export default function Home() {
   // ---------- global ----------
   const [error, setError] = useState<string | null>(null);
-const [newMachineImageUrl, setNewMachineImageUrl] = useState<string | null>(null);
-const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
 
   // ---------- machines ----------
   const [machines, setMachines] = useState<Machine[]>([]);
@@ -64,7 +62,7 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
   const [mHours, setMHours] = useState<string>("");
   const [savingMachine, setSavingMachine] = useState(false);
 
-  // add machine image (AI-first optional)
+  // add machine image (optional) + AI scan
   const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
   const [newMachineImageUrl, setNewMachineImageUrl] = useState<string | null>(null);
   const [loadingNewMachineAi, setLoadingNewMachineAi] = useState(false);
@@ -279,38 +277,35 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
     fetchEvents(m.id);
   };
 
-  // ---------- Add machine (with optional image_url) ----------
- const handleNewMachineImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
+  // ---------- Add machine image (upload + preview) ----------
+  const handleNewMachineImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  setError(null);
-  setUploadingNewMachineImage(true);
+    setError(null);
+    setUploadingNewMachineImage(true);
 
-  try {
-    const filePath = `new/${Date.now()}-${file.name}`;
+    try {
+      const filePath = `new/${Date.now()}-${file.name}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("machine-images")
-      .upload(filePath, file);
+      const { error: uploadError } = await supabase.storage
+        .from("machine-images")
+        .upload(filePath, file);
 
-    if (uploadError) throw uploadError;
+      if (uploadError) throw uploadError;
 
-    const { data: publicData } = supabase.storage
-      .from("machine-images")
-      .getPublicUrl(filePath);
+      const { data: publicData } = supabase.storage
+        .from("machine-images")
+        .getPublicUrl(filePath);
 
-    const publicUrl = publicData.publicUrl;
-
-    setNewMachineImageUrl(publicUrl); // <-- VIKTIG
-  } catch (err: any) {
-    console.error(err);
-    setError("Kunde inte ladda upp bild.");
-  } finally {
-    setUploadingNewMachineImage(false);
-  }
-};
-
+      setNewMachineImageUrl(publicData.publicUrl);
+    } catch (err: any) {
+      console.error(err);
+      setError("Kunde inte ladda upp bild.");
+    } finally {
+      setUploadingNewMachineImage(false);
+    }
+  };
 
   const handleNewMachineAi = async () => {
     if (!newMachineImageUrl) {
@@ -354,65 +349,59 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
     }
   };
 
- const handleAddMachine = async (e: FormEvent) => {
-  e.preventDefault();
-  setError(null);
+  // ---------- Add machine (with optional image_url) ----------
+  const handleAddMachine = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
 
-  if (!mName || !mModel || !mSerial) {
-    setError("Fyll i namn, modell och serienummer.");
-    return;
-  }
-
-  setSavingMachine(true);
-
-  try {
-    const yearNum = mYear.trim() ? Number(mYear) : null;
-    const hoursNum = mHours.trim() ? Number(mHours) : null;
-
-    const payload = {
-      name: mName,
-      model: mModel,
-      serial_number: mSerial,
-      year: yearNum !== null && Number.isFinite(yearNum) ? yearNum : null,
-      hours: hoursNum !== null && Number.isFinite(hoursNum) ? hoursNum : null,
-      image_url: newMachineImageUrl ?? null,
-    };
-
-    console.log("CREATE machine payload", payload);
-
-    const res = await fetch("/api/machines/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const json = await res.json();
-    console.log("CREATE response", json);
-
-    if (!json.ok) throw new Error(json.error || "Kunde inte spara maskin.");
-
-    if (json.machine) {
-      setMachines((prev) => [json.machine, ...prev]);
-    } else {
-      await fetchMachines();
+    if (!mName || !mModel || !mSerial) {
+      setError("Fyll i namn, modell och serienummer.");
+      return;
     }
 
-    // reset form
-    setMName("");
-    setMModel("");
-    setMSerial("");
-    setMYear("");
-    setMHours("");
-    // valfritt: reset bild för ny maskin
-    setNewMachineImageUrl(null);
-  } catch (err: any) {
-    console.error(err);
-    setError(err?.message || "Kunde inte spara maskin.");
-  } finally {
-    setSavingMachine(false);
-  }
-};
+    setSavingMachine(true);
 
+    try {
+      const yearNum = mYear.trim() ? Number(mYear) : null;
+      const hoursNum = mHours.trim() ? Number(mHours) : null;
+
+      const payload = {
+        name: mName,
+        model: mModel,
+        serial_number: mSerial,
+        year: yearNum !== null && Number.isFinite(yearNum) ? yearNum : null,
+        hours: hoursNum !== null && Number.isFinite(hoursNum) ? hoursNum : null,
+        image_url: newMachineImageUrl ?? null,
+      };
+
+      const res = await fetch("/api/machines/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Kunde inte spara maskin.");
+
+      if (json.machine) {
+        setMachines((prev) => [json.machine, ...prev]);
+      } else {
+        await fetchMachines();
+      }
+
+      setMName("");
+      setMModel("");
+      setMSerial("");
+      setMYear("");
+      setMHours("");
+      setNewMachineImageUrl(null);
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Kunde inte spara maskin.");
+    } finally {
+      setSavingMachine(false);
+    }
+  };
 
   // ---------- Events: create + verify (API) ----------
   const handleAddEvent = async (e: FormEvent) => {
@@ -595,7 +584,6 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
       };
     }
 
-    // excavator
     return {
       ...base,
       machine_type: "excavator",
@@ -629,7 +617,6 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
     conditionScore,
     machineType,
 
-    // WL
     wlWeightClass,
     wlBucketSize,
     wlTirePercent,
@@ -648,7 +635,6 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
     wheelLoaderProScore,
     wheelLoaderProLabel,
 
-    // EX
     exWeightClass,
     exUndercarriage,
     exTracksType,
@@ -683,13 +669,11 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
 
       setLeadSent(true);
 
-      // reset basics
       setLeadName("");
       setLeadEmail("");
       setLeadPhone("");
       setLeadMessage("");
 
-      // reset common
       setBrand("");
       setLeadModel("");
       setLeadYear("");
@@ -698,7 +682,6 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
       setValueEstimate("");
       setConditionScore("");
 
-      // reset WL
       setWlWeightClass("");
       setWlBucketSize("");
       setWlTirePercent("");
@@ -715,7 +698,6 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
       setWlEstimateHigh("");
       setWlEstimateNote("");
 
-      // reset EX
       setExWeightClass("");
       setExUndercarriage("");
       setExTracksType("steel");
@@ -754,57 +736,53 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
         {/* Left */}
         <div className="bg-white shadow-md rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-3">Lägg till maskin</h2>
-{/* NY MASKIN – BILD */}
-<div className="mb-4">
-  <p className="text-sm font-semibold mb-1">Bild (valfritt)</p>
 
-  <input
-    type="file"
-    accept="image/*"
-    onChange={handleNewMachineImageChange}
-    className="text-sm"
-  />
-
-  {uploadingNewMachineImage && (
-    <p className="text-xs text-gray-500 mt-1">Laddar upp bild...</p>
-  )}
-
-  {newMachineImageUrl ? (
-    <div className="mt-3 border rounded-lg p-3 bg-emerald-50">
-      <p className="text-sm font-semibold text-emerald-800">Bild kopplad ✅</p>
-      <img
-        src={newMachineImageUrl}
-        alt="Ny maskin-bild"
-        className="mt-2 w-full max-h-48 object-cover rounded-md border"
-      />
-      <button
-        type="button"
-        onClick={() => setNewMachineImageUrl(null)}
-        className="mt-2 text-xs px-3 py-1 rounded border border-emerald-300 bg-white"
-      >
-        Ta bort bild
-      </button>
-    </div>
-  ) : (
-    <p className="text-xs text-gray-500 mt-2">Ingen bild vald ännu.</p>
-  )}
-</div>
-
-          {/* AI-first image */}
+          {/* BILD + PREVIEW + AI */}
           <div className="mb-4 border rounded-lg p-3 bg-slate-50">
             <p className="text-sm font-semibold mb-2">Bild (valfritt)</p>
-            <input type="file" accept="image/*" onChange={handleNewMachineImageChange} className="text-sm" />
-            {uploadingNewMachineImage && <p className="text-xs text-gray-500 mt-1">Laddar upp bild...</p>}
-            {newMachineImageUrl && <p className="text-xs text-emerald-600 mt-1">Bild uppladdad ✅</p>}
 
-            <button
-              type="button"
-              onClick={handleNewMachineAi}
-              disabled={!newMachineImageUrl || loadingNewMachineAi}
-              className="mt-2 text-xs bg-purple-600 text-white px-3 py-1 rounded disabled:opacity-60"
-            >
-              {loadingNewMachineAi ? "Läser av med AI..." : "🔍 AI: fyll i modell & serienr"}
-            </button>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleNewMachineImageChange}
+              className="text-sm"
+            />
+
+            {uploadingNewMachineImage && (
+              <p className="text-xs text-gray-500 mt-1">Laddar upp bild...</p>
+            )}
+
+            {newMachineImageUrl ? (
+              <div className="mt-3 border rounded-lg p-3 bg-emerald-50">
+                <p className="text-sm font-semibold text-emerald-800">Bild kopplad ✅</p>
+                <img
+                  src={newMachineImageUrl}
+                  alt="Ny maskin-bild"
+                  className="mt-2 w-full max-h-48 object-cover rounded-md border"
+                />
+
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewMachineImageUrl(null)}
+                    className="text-xs px-3 py-1 rounded border border-emerald-300 bg-white"
+                  >
+                    Ta bort bild
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleNewMachineAi}
+                    disabled={loadingNewMachineAi}
+                    className="text-xs bg-purple-600 text-white px-3 py-1 rounded disabled:opacity-60"
+                  >
+                    {loadingNewMachineAi ? "Läser av med AI..." : "🔍 AI: fyll i modell & serienr"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500 mt-2">Ingen bild vald ännu.</p>
+            )}
           </div>
 
           <form onSubmit={handleAddMachine} className="flex flex-col gap-3 mb-6">
@@ -1434,11 +1412,9 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
               />
             </div>
 
-            {/* Wheel loader estimate */}
             {machineType === "wheel_loader" && (
               <div className="border rounded-lg p-3 bg-amber-50 space-y-3">
                 <p className="text-sm font-semibold">Hjullastare – estimat (valfritt)</p>
-
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium">Estimat low (NOK)</label>
@@ -1461,7 +1437,6 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
                     />
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium">Estimat note</label>
                   <input
@@ -1471,18 +1446,12 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
                     placeholder="ex: däck 60%, centralsmörjning, våg, 3:e funktion"
                   />
                 </div>
-
-                <p className="text-xs text-gray-600">
-                  (Skickas som <code>estimate_low</code>, <code>estimate_high</code>, <code>estimate_note</code>.)
-                </p>
               </div>
             )}
 
-            {/* Excavator estimate */}
             {machineType === "excavator" && (
               <div className="border rounded-lg p-3 bg-amber-50 space-y-3">
                 <p className="text-sm font-semibold">Grävmaskin – estimat (valfritt)</p>
-
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium">Estimat low (NOK)</label>
@@ -1505,7 +1474,6 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
                     />
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium">Estimat note</label>
                   <input
@@ -1515,10 +1483,6 @@ const [uploadingNewMachineImage, setUploadingNewMachineImage] = useState(false);
                     placeholder="ex: inkl. 2 skopor, rototilt, 60% UC"
                   />
                 </div>
-
-                <p className="text-xs text-gray-600">
-                  (Skickas som <code>estimate_low</code>, <code>estimate_high</code>, <code>estimate_note</code>.)
-                </p>
               </div>
             )}
 
