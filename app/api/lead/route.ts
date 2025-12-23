@@ -203,6 +203,8 @@ export async function POST(req: Request) {
       estimate_low,
       estimate_high,
       estimate_note,
+      image_urls: Array.isArray(body.image_urls) ? body.image_urls : [],
+
     };
 
     const { data, error: insertError } = await supabaseAdmin
