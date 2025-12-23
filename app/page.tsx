@@ -89,6 +89,9 @@ export default function Home() {
 
   // ---------- leads ----------
   const [machineType, setMachineType] = useState<MachineType>("wheel_loader");
+// ---- lead images ----
+const [leadImageUrls, setLeadImageUrls] = useState<string[]>([]);
+const [uploadingLeadImages, setUploadingLeadImages] = useState(false);
 
   const [leadSubmitting, setLeadSubmitting] = useState(false);
   const [leadSent, setLeadSent] = useState(false);
@@ -281,6 +284,54 @@ export default function Home() {
  const handleNewMachineImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
   const file = e.target.files?.[0];
   if (!file) return;
+     const remainingSlots = Math.max(0, 5 - leadImageUrls.length);
+  const toUpload = files.slice(0, remainingSlots);
+
+  if (toUpload.length === 0) {
+    setError("Max 5 bilder.");
+    e.target.value = "";
+    return;
+  }
+
+  setError(null);
+  setUploadingLeadImages(true);
+
+  try {
+    const uploadedUrls: string[] = [];
+
+    for (const file of toUpload) {
+      const safeName = file.name.replace(/\s+/g, "-");
+      const filePath = `leads/${Date.now()}-${safeName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("machine-images")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from("machine-images").getPublicUrl(filePath);
+      const publicUrl = data.publicUrl;
+
+      if (publicUrl) uploadedUrls.push(publicUrl);
+    }
+
+    setLeadImageUrls((prev) => [...prev, ...uploadedUrls]);
+  } catch (err: any) {
+    console.error(err);
+    setError("Kunde inte ladda upp bilder för värdering.");
+  } finally {
+    setUploadingLeadImages(false);
+    e.target.value = ""; // så du kan välja samma fil igen
+  }
+};
+
+const removeLeadImage = (url: string) => {
+  setLeadImageUrls((prev) => prev.filter((u) => u !== url));
+};
+
+const clearLeadImages = () => {
+  setLeadImageUrls([]);
+};
 
   setError(null);
   setUploadingNewMachineImage(true);
@@ -580,6 +631,7 @@ if (hoursNum !== null) {
 
       valueEstimate: valueEstimate ? toNumOrNull(valueEstimate) : null,
       conditionScore: conditionScore ? toNumOrNull(conditionScore) : null,
+      image_urls: leadImageUrls,
     };
 
     if (machineType === "wheel_loader") {
@@ -681,6 +733,8 @@ if (hoursNum !== null) {
     setLeadSubmitting(true);
     setLeadSent(false);
     setLeadError(null);
+    setLeadImageUrls([]);
+
 
     try {
       if (!leadPayload.email) throw new Error("E-post krävs.");
@@ -1406,6 +1460,55 @@ if (hoursNum !== null) {
                 required
               />
             </div>
+{/* LEAD IMAGES */}
+<div className="border rounded-lg p-3 bg-slate-50 space-y-2">
+  <div className="flex items-center justify-between">
+    <p className="text-sm font-semibold">Bilder på maskinen (valfritt)</p>
+    {leadImageUrls.length > 0 && (
+      <button
+        type="button"
+        onClick={clearLeadImages}
+        className="text-xs px-2 py-1 rounded border bg-white"
+      >
+        Rensa
+      </button>
+    )}
+  </div>
+
+  <input
+    type="file"
+    accept="image/*"
+    multiple
+    onChange={handleLeadImagesChange}
+    disabled={uploadingLeadImages || leadImageUrls.length >= 5}
+    className="text-sm"
+  />
+
+  <p className="text-xs text-gray-600">
+    {leadImageUrls.length}/5 uppladdade {uploadingLeadImages ? "• laddar upp..." : ""}
+  </p>
+
+  {leadImageUrls.length > 0 && (
+    <div className="grid grid-cols-3 gap-2">
+      {leadImageUrls.map((url) => (
+        <div key={url} className="relative">
+          <img
+            src={url}
+            alt="Lead bild"
+            className="w-full h-20 object-cover rounded border"
+          />
+          <button
+            type="button"
+            onClick={() => removeLeadImage(url)}
+            className="absolute top-1 right-1 text-[10px] px-2 py-1 rounded bg-white border"
+          >
+            Ta bort
+          </button>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
 
             <div>
               <label className="block text-sm font-medium">E-post</label>
