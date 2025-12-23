@@ -279,51 +279,36 @@ const [uploadingLeadImages, setUploadingLeadImages] = useState(false);
     setCondition(null);
     fetchEvents(m.id);
   };
-
-  // ---------- Add machine image (upload + preview) ----------
- const handleNewMachineImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+// ---------- Add machine image (upload + preview) ----------
+const handleNewMachineImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
   const file = e.target.files?.[0];
   if (!file) return;
-     const remainingSlots = Math.max(0, 5 - leadImageUrls.length);
-  const toUpload = files.slice(0, remainingSlots);
-
-  if (toUpload.length === 0) {
-    setError("Max 5 bilder.");
-    e.target.value = "";
-    return;
-  }
 
   setError(null);
-  setUploadingLeadImages(true);
+  setUploadingNewMachineImage(true);
 
   try {
-    const uploadedUrls: string[] = [];
+    const fd = new FormData();
+    fd.append("file", file);
 
-    for (const file of toUpload) {
-      const safeName = file.name.replace(/\s+/g, "-");
-      const filePath = `leads/${Date.now()}-${safeName}`;
+    const res = await fetch("/api/uploads/machine-image", {
+      method: "POST",
+      body: fd,
+    });
 
-      const { error: uploadError } = await supabase.storage
-        .from("machine-images")
-        .upload(filePath, file);
+    const json = await res.json();
+    if (!res.ok || !json?.ok) throw new Error(json?.error || "Upload failed");
 
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from("machine-images").getPublicUrl(filePath);
-      const publicUrl = data.publicUrl;
-
-      if (publicUrl) uploadedUrls.push(publicUrl);
-    }
-
-    setLeadImageUrls((prev) => [...prev, ...uploadedUrls]);
+    setNewMachineImageUrl(json.publicUrl); // <-- används sen i /api/machines/create
   } catch (err: any) {
     console.error(err);
-    setError("Kunde inte ladda upp bilder för värdering.");
+    setError(err?.message || "Kunde inte ladda upp bild.");
   } finally {
-    setUploadingLeadImages(false);
+    setUploadingNewMachineImage(false);
     e.target.value = ""; // så du kan välja samma fil igen
   }
 };
+
 
 const removeLeadImage = (url: string) => {
   setLeadImageUrls((prev) => prev.filter((u) => u !== url));
@@ -355,6 +340,57 @@ const clearLeadImages = () => {
   } finally {
     setUploadingNewMachineImage(false);
   }
+};
+// ---------- Lead images (max 5) ----------
+const handleLeadImagesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const files = Array.from(e.target.files || []);
+  if (files.length === 0) return;
+
+  const remainingSlots = Math.max(0, 5 - leadImageUrls.length);
+  const toUpload = files.slice(0, remainingSlots);
+
+  if (toUpload.length === 0) {
+    setError("Max 5 bilder.");
+    e.target.value = "";
+    return;
+  }
+
+  setError(null);
+  setUploadingLeadImages(true);
+
+  try {
+    const uploadedUrls: string[] = [];
+
+    for (const file of toUpload) {
+      const safeName = file.name.replace(/\s+/g, "-");
+      const filePath = `leads/${Date.now()}-${safeName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("machine-images")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from("machine-images").getPublicUrl(filePath);
+      if (data?.publicUrl) uploadedUrls.push(data.publicUrl);
+    }
+
+    setLeadImageUrls((prev) => [...prev, ...uploadedUrls]);
+  } catch (err) {
+    console.error(err);
+    setError("Kunde inte ladda upp bilder för värdering.");
+  } finally {
+    setUploadingLeadImages(false);
+    e.target.value = "";
+  }
+};
+
+const removeLeadImage = (url: string) => {
+  setLeadImageUrls((prev) => prev.filter((u) => u !== url));
+};
+
+const clearLeadImages = () => {
+  setLeadImageUrls([]);
 };
 
 
