@@ -89,9 +89,10 @@ export default function Home() {
 
   // ---------- leads ----------
   const [machineType, setMachineType] = useState<MachineType>("wheel_loader");
-// ---- lead images ----
-const [leadImageUrls, setLeadImageUrls] = useState<string[]>([]);
-const [uploadingLeadImages, setUploadingLeadImages] = useState(false);
+
+  // lead images (max 5)
+  const [leadImageUrls, setLeadImageUrls] = useState<string[]>([]);
+  const [uploadingLeadImages, setUploadingLeadImages] = useState(false);
 
   const [leadSubmitting, setLeadSubmitting] = useState(false);
   const [leadSent, setLeadSent] = useState(false);
@@ -228,6 +229,9 @@ const [uploadingLeadImages, setUploadingLeadImages] = useState(false);
     return "Bas / osäkert";
   }, [excavatorProScore]);
 
+  const activeProScore = machineType === "wheel_loader" ? wheelLoaderProScore : excavatorProScore;
+  const activeProLabel = machineType === "wheel_loader" ? wheelLoaderProLabel : excavatorProLabel;
+
   // ---------- API: machines ----------
   const fetchMachines = async () => {
     setLoadingMachines(true);
@@ -251,10 +255,9 @@ const [uploadingLeadImages, setUploadingLeadImages] = useState(false);
     setError(null);
 
     try {
-      const res = await fetch(
-        `/api/machines/events?machineId=${encodeURIComponent(machineId)}`,
-        { cache: "no-store" }
-      );
+      const res = await fetch(`/api/machines/events?machineId=${encodeURIComponent(machineId)}`, {
+        cache: "no-store",
+      });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || "Kunde inte hämta historik.");
       setEvents((json.events || []) as MachineEvent[]);
@@ -279,121 +282,87 @@ const [uploadingLeadImages, setUploadingLeadImages] = useState(false);
     setCondition(null);
     fetchEvents(m.id);
   };
-// ---------- Add machine image (upload + preview) ----------
-const handleNewMachineImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
 
-  setError(null);
-  setUploadingNewMachineImage(true);
+  // ---------- Add machine image (upload + preview) ----------
+  const handleNewMachineImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  try {
-    const fd = new FormData();
-    fd.append("file", file);
+    setError(null);
+    setUploadingNewMachineImage(true);
 
-    const res = await fetch("/api/uploads/machine-image", {
-      method: "POST",
-      body: fd,
-    });
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
 
-    const json = await res.json();
-    if (!res.ok || !json?.ok) throw new Error(json?.error || "Upload failed");
+      const res = await fetch("/api/uploads/machine-image", {
+        method: "POST",
+        body: fd,
+      });
 
-    setNewMachineImageUrl(json.publicUrl); // <-- används sen i /api/machines/create
-  } catch (err: any) {
-    console.error(err);
-    setError(err?.message || "Kunde inte ladda upp bild.");
-  } finally {
-    setUploadingNewMachineImage(false);
-    e.target.value = ""; // så du kan välja samma fil igen
-  }
-};
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "Upload failed");
 
+      setNewMachineImageUrl(json.publicUrl);
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Kunde inte ladda upp bild.");
+    } finally {
+      setUploadingNewMachineImage(false);
+      e.target.value = "";
+    }
+  };
 
-const removeLeadImage = (url: string) => {
-  setLeadImageUrls((prev) => prev.filter((u) => u !== url));
-};
+  // ---------- Lead images (max 5) ----------
+  const handleLeadImagesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-const clearLeadImages = () => {
-  setLeadImageUrls([]);
-};
+    const remainingSlots = Math.max(0, 5 - leadImageUrls.length);
+    const toUpload = files.slice(0, remainingSlots);
 
-  setError(null);
-  setUploadingNewMachineImage(true);
-
-  try {
-    const fd = new FormData();
-    fd.append("file", file);
-
-    const res = await fetch("/api/uploads/machine-image", {
-      method: "POST",
-      body: fd,
-    });
-
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error || "Upload failed");
-
-    setNewMachineImageUrl(json.publicUrl); // <-- används sen i /api/machines/create
-  } catch (err: any) {
-    console.error(err);
-    setError(err?.message || "Kunde inte ladda upp bild.");
-  } finally {
-    setUploadingNewMachineImage(false);
-  }
-};
-// ---------- Lead images (max 5) ----------
-const handleLeadImagesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const files = Array.from(e.target.files || []);
-  if (files.length === 0) return;
-
-  const remainingSlots = Math.max(0, 5 - leadImageUrls.length);
-  const toUpload = files.slice(0, remainingSlots);
-
-  if (toUpload.length === 0) {
-    setError("Max 5 bilder.");
-    e.target.value = "";
-    return;
-  }
-
-  setError(null);
-  setUploadingLeadImages(true);
-
-  try {
-    const uploadedUrls: string[] = [];
-
-    for (const file of toUpload) {
-      const safeName = file.name.replace(/\s+/g, "-");
-      const filePath = `leads/${Date.now()}-${safeName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("machine-images")
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from("machine-images").getPublicUrl(filePath);
-      if (data?.publicUrl) uploadedUrls.push(data.publicUrl);
+    if (toUpload.length === 0) {
+      setError("Max 5 bilder.");
+      e.target.value = "";
+      return;
     }
 
-    setLeadImageUrls((prev) => [...prev, ...uploadedUrls]);
-  } catch (err) {
-    console.error(err);
-    setError("Kunde inte ladda upp bilder för värdering.");
-  } finally {
-    setUploadingLeadImages(false);
-    e.target.value = "";
-  }
-};
+    setError(null);
+    setUploadingLeadImages(true);
 
-const removeLeadImage = (url: string) => {
-  setLeadImageUrls((prev) => prev.filter((u) => u !== url));
-};
+    try {
+      const uploadedUrls: string[] = [];
 
-const clearLeadImages = () => {
-  setLeadImageUrls([]);
-};
+      for (const file of toUpload) {
+        const safeName = file.name.replace(/\s+/g, "-");
+        const filePath = `leads/${Date.now()}-${safeName}`;
 
+        const { error: uploadError } = await supabase.storage.from("machine-images").upload(filePath, file);
+        if (uploadError) throw uploadError;
 
+        const { data } = supabase.storage.from("machine-images").getPublicUrl(filePath);
+        if (data?.publicUrl) uploadedUrls.push(data.publicUrl);
+      }
+
+      setLeadImageUrls((prev) => [...prev, ...uploadedUrls]);
+    } catch (err) {
+      console.error(err);
+      setError("Kunde inte ladda upp bilder för värdering.");
+    } finally {
+      setUploadingLeadImages(false);
+      e.target.value = "";
+    }
+  };
+
+  const removeLeadImage = (url: string) => {
+    setLeadImageUrls((prev) => prev.filter((u) => u !== url));
+  };
+
+  const clearLeadImages = () => {
+    setLeadImageUrls([]);
+  };
+
+  // ---------- AI scan for new machine ----------
   const handleNewMachineAi = async () => {
     if (!newMachineImageUrl) {
       setError("Ladda upp bild först.");
@@ -436,7 +405,7 @@ const clearLeadImages = () => {
     }
   };
 
-  // ---------- Add machine (with optional image_url) ----------
+  // ---------- Add machine (with hard validation + optional image_url) ----------
   const handleAddMachine = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -446,39 +415,37 @@ const clearLeadImages = () => {
       return;
     }
 
+    const yearNum = mYear.trim() ? Number(mYear) : null;
+    const hoursNum = mHours.trim() ? Number(mHours) : null;
+
+    // ✅ HÅRD VALIDERING (frontend)
+    const nowYear = new Date().getFullYear();
+
+    if (yearNum !== null) {
+      if (!Number.isFinite(yearNum) || !Number.isInteger(yearNum)) {
+        setError("Årsmodell måste vara ett heltal (t.ex. 2018).");
+        return;
+      }
+      if (yearNum < 1950 || yearNum > nowYear + 1) {
+        setError(`Årsmodell måste vara mellan 1950 och ${nowYear + 1}.`);
+        return;
+      }
+    }
+
+    if (hoursNum !== null) {
+      if (!Number.isFinite(hoursNum) || hoursNum < 0) {
+        setError("Timmar måste vara 0 eller högre.");
+        return;
+      }
+      if (hoursNum > 200000) {
+        setError("Timmar ser orimligt högt ut. Skriv rätt antal (max 200 000).");
+        return;
+      }
+    }
+
     setSavingMachine(true);
 
     try {
-      const yearNum = mYear.trim() ? Number(mYear) : null;
-      const hoursNum = mHours.trim() ? Number(mHours) : null;
-// ✅ HÅRD VALIDERING (frontend)
-const nowYear = new Date().getFullYear();
-
-if (yearNum !== null) {
-  if (!Number.isFinite(yearNum) || !Number.isInteger(yearNum)) {
-    setError("Årsmodell måste vara ett heltal (t.ex. 2018).");
-    setSavingMachine(false);
-    return;
-  }
-  if (yearNum < 1950 || yearNum > nowYear + 1) {
-    setError(`Årsmodell måste vara mellan 1950 och ${nowYear + 1}.`);
-    setSavingMachine(false);
-    return;
-  }
-}
-
-if (hoursNum !== null) {
-  if (!Number.isFinite(hoursNum) || hoursNum < 0) {
-    setError("Timmar måste vara 0 eller högre.");
-    setSavingMachine(false);
-    return;
-  }
-  if (hoursNum > 200000) {
-    setError("Timmar ser orimligt högt ut. Skriv rätt antal (max 200 000).");
-    setSavingMachine(false);
-    return;
-  }
-}
       const payload = {
         name: mName,
         model: mModel,
@@ -497,12 +464,10 @@ if (hoursNum !== null) {
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || "Kunde inte spara maskin.");
 
-      if (json.machine) {
-        setMachines((prev) => [json.machine, ...prev]);
-      } else {
-        await fetchMachines();
-      }
+      // refresh list
+      await fetchMachines();
 
+      // reset form
       setMName("");
       setMModel("");
       setMSerial("");
@@ -517,7 +482,7 @@ if (hoursNum !== null) {
     }
   };
 
-  // ---------- Events: create + verify (API) ----------
+  // ---------- Events: create + verify ----------
   const handleAddEvent = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -562,17 +527,14 @@ if (hoursNum !== null) {
     setVerifyOk(null);
 
     try {
-      const res = await fetch(
-        `/api/machines/events/verify?machineId=${encodeURIComponent(selectedMachine.id)}`,
-        { cache: "no-store" }
-      );
+      const res = await fetch(`/api/machines/events/verify?machineId=${encodeURIComponent(selectedMachine.id)}`, {
+        cache: "no-store",
+      });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || "Kunde inte verifiera kedjan.");
 
       setVerifyOk(!!json.verified);
-      setVerifyMessage(
-        json.message || (json.verified ? "Kedjan är intakt ✅" : "Kedjan är bruten ❌")
-      );
+      setVerifyMessage(json.message || (json.verified ? "Kedjan är intakt ✅" : "Kedjan är bruten ❌"));
     } catch (err: any) {
       console.error(err);
       setVerifyOk(false);
@@ -583,7 +545,7 @@ if (hoursNum !== null) {
     }
   };
 
-  // ---------- AI: valuation + condition (API) ----------
+  // ---------- AI: valuation + condition ----------
   const handleValuation = async () => {
     if (!selectedMachine) return setError("Välj en maskin först.");
 
@@ -667,6 +629,7 @@ if (hoursNum !== null) {
 
       valueEstimate: valueEstimate ? toNumOrNull(valueEstimate) : null,
       conditionScore: conditionScore ? toNumOrNull(conditionScore) : null,
+
       image_urls: leadImageUrls,
     };
 
@@ -731,7 +694,9 @@ if (hoursNum !== null) {
     valueEstimate,
     conditionScore,
     machineType,
+    leadImageUrls,
 
+    // WL
     wlWeightClass,
     wlBucketSize,
     wlTirePercent,
@@ -750,6 +715,7 @@ if (hoursNum !== null) {
     wheelLoaderProScore,
     wheelLoaderProLabel,
 
+    // EX
     exWeightClass,
     exUndercarriage,
     exTracksType,
@@ -769,8 +735,6 @@ if (hoursNum !== null) {
     setLeadSubmitting(true);
     setLeadSent(false);
     setLeadError(null);
-    setLeadImageUrls([]);
-
 
     try {
       if (!leadPayload.email) throw new Error("E-post krävs.");
@@ -786,11 +750,13 @@ if (hoursNum !== null) {
 
       setLeadSent(true);
 
+      // reset basics
       setLeadName("");
       setLeadEmail("");
       setLeadPhone("");
       setLeadMessage("");
 
+      // reset common
       setBrand("");
       setLeadModel("");
       setLeadYear("");
@@ -799,6 +765,10 @@ if (hoursNum !== null) {
       setValueEstimate("");
       setConditionScore("");
 
+      // reset images
+      setLeadImageUrls([]);
+
+      // reset WL
       setWlWeightClass("");
       setWlBucketSize("");
       setWlTirePercent("");
@@ -815,6 +785,7 @@ if (hoursNum !== null) {
       setWlEstimateHigh("");
       setWlEstimateNote("");
 
+      // reset EX
       setExWeightClass("");
       setExUndercarriage("");
       setExTracksType("steel");
@@ -832,9 +803,6 @@ if (hoursNum !== null) {
       setLeadSubmitting(false);
     }
   };
-
-  const activeProScore = machineType === "wheel_loader" ? wheelLoaderProScore : excavatorProScore;
-  const activeProLabel = machineType === "wheel_loader" ? wheelLoaderProLabel : excavatorProLabel;
 
   // ---------- UI ----------
   return (
@@ -858,16 +826,9 @@ if (hoursNum !== null) {
           <div className="mb-4 border rounded-lg p-3 bg-slate-50">
             <p className="text-sm font-semibold mb-2">Bild (valfritt)</p>
 
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleNewMachineImageChange}
-              className="text-sm"
-            />
+            <input type="file" accept="image/*" onChange={handleNewMachineImageChange} className="text-sm" />
 
-            {uploadingNewMachineImage && (
-              <p className="text-xs text-gray-500 mt-1">Laddar upp bild...</p>
-            )}
+            {uploadingNewMachineImage && <p className="text-xs text-gray-500 mt-1">Laddar upp bild...</p>}
 
             {newMachineImageUrl ? (
               <div className="mt-3 border rounded-lg p-3 bg-emerald-50">
@@ -1269,7 +1230,7 @@ if (hoursNum !== null) {
               </div>
             </div>
 
-            {/* Wheel loader module */}
+            {/* WL module */}
             {machineType === "wheel_loader" && (
               <div className="border rounded-lg p-3 bg-slate-50 space-y-3">
                 <div className="flex items-center justify-between">
@@ -1277,9 +1238,6 @@ if (hoursNum !== null) {
                   <span className="text-xs font-semibold px-2 py-1 rounded-full border bg-white">
                     {wheelLoaderProScore}/10 – {wheelLoaderProLabel}
                   </span>
-                </div>
-                <div className="h-2 w-full rounded bg-white border overflow-hidden">
-                  <div className="h-full bg-slate-900" style={{ width: `${wheelLoaderProScore * 10}%` }} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -1396,7 +1354,7 @@ if (hoursNum !== null) {
               </div>
             )}
 
-            {/* Excavator module */}
+            {/* EX module */}
             {machineType === "excavator" && (
               <div className="border rounded-lg p-3 bg-slate-50 space-y-3">
                 <div className="flex items-center justify-between">
@@ -1404,9 +1362,6 @@ if (hoursNum !== null) {
                   <span className="text-xs font-semibold px-2 py-1 rounded-full border bg-white">
                     {excavatorProScore}/10 – {excavatorProLabel}
                   </span>
-                </div>
-                <div className="h-2 w-full rounded bg-white border overflow-hidden">
-                  <div className="h-full bg-slate-900" style={{ width: `${excavatorProScore * 10}%` }} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -1456,25 +1411,15 @@ if (hoursNum !== null) {
 
                 <div className="flex flex-wrap gap-3 text-sm">
                   <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={exQuickCoupler}
-                      onChange={(e) => setExQuickCoupler(e.target.checked)}
-                    />
+                    <input type="checkbox" checked={exQuickCoupler} onChange={(e) => setExQuickCoupler(e.target.checked)} />
                     Snabbfäste
                   </label>
-
                   <label className="flex items-center gap-2">
                     <input type="checkbox" checked={exRototilt} onChange={(e) => setExRototilt(e.target.checked)} />
                     Rototilt
                   </label>
-
                   <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={exExtraHydraulics}
-                      onChange={(e) => setExExtraHydraulics(e.target.checked)}
-                    />
+                    <input type="checkbox" checked={exExtraHydraulics} onChange={(e) => setExExtraHydraulics(e.target.checked)} />
                     Extra hydraulik
                   </label>
                 </div>
@@ -1496,55 +1441,48 @@ if (hoursNum !== null) {
                 required
               />
             </div>
-{/* LEAD IMAGES */}
-<div className="border rounded-lg p-3 bg-slate-50 space-y-2">
-  <div className="flex items-center justify-between">
-    <p className="text-sm font-semibold">Bilder på maskinen (valfritt)</p>
-    {leadImageUrls.length > 0 && (
-      <button
-        type="button"
-        onClick={clearLeadImages}
-        className="text-xs px-2 py-1 rounded border bg-white"
-      >
-        Rensa
-      </button>
-    )}
-  </div>
 
-  <input
-    type="file"
-    accept="image/*"
-    multiple
-    onChange={handleLeadImagesChange}
-    disabled={uploadingLeadImages || leadImageUrls.length >= 5}
-    className="text-sm"
-  />
+            {/* LEAD IMAGES */}
+            <div className="border rounded-lg p-3 bg-slate-50 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Bilder på maskinen (valfritt)</p>
+                {leadImageUrls.length > 0 && (
+                  <button type="button" onClick={clearLeadImages} className="text-xs px-2 py-1 rounded border bg-white">
+                    Rensa
+                  </button>
+                )}
+              </div>
 
-  <p className="text-xs text-gray-600">
-    {leadImageUrls.length}/5 uppladdade {uploadingLeadImages ? "• laddar upp..." : ""}
-  </p>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleLeadImagesChange}
+                disabled={uploadingLeadImages || leadImageUrls.length >= 5}
+                className="text-sm"
+              />
 
-  {leadImageUrls.length > 0 && (
-    <div className="grid grid-cols-3 gap-2">
-      {leadImageUrls.map((url) => (
-        <div key={url} className="relative">
-          <img
-            src={url}
-            alt="Lead bild"
-            className="w-full h-20 object-cover rounded border"
-          />
-          <button
-            type="button"
-            onClick={() => removeLeadImage(url)}
-            className="absolute top-1 right-1 text-[10px] px-2 py-1 rounded bg-white border"
-          >
-            Ta bort
-          </button>
-        </div>
-      ))}
-    </div>
-  )}
-</div>
+              <p className="text-xs text-gray-600">
+                {leadImageUrls.length}/5 uppladdade {uploadingLeadImages ? "• laddar upp..." : ""}
+              </p>
+
+              {leadImageUrls.length > 0 && (
+                <div className="grid grid-cols-3 gap-2">
+                  {leadImageUrls.map((url) => (
+                    <div key={url} className="relative">
+                      <img src={url} alt="Lead bild" className="w-full h-20 object-cover rounded border" />
+                      <button
+                        type="button"
+                        onClick={() => removeLeadImage(url)}
+                        className="absolute top-1 right-1 text-[10px] px-2 py-1 rounded bg-white border"
+                      >
+                        Ta bort
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div>
               <label className="block text-sm font-medium">E-post</label>
@@ -1578,6 +1516,7 @@ if (hoursNum !== null) {
               />
             </div>
 
+            {/* WL estimate */}
             {machineType === "wheel_loader" && (
               <div className="border rounded-lg p-3 bg-amber-50 space-y-3">
                 <p className="text-sm font-semibold">Hjullastare – estimat (valfritt)</p>
@@ -1615,6 +1554,7 @@ if (hoursNum !== null) {
               </div>
             )}
 
+            {/* EX estimate */}
             {machineType === "excavator" && (
               <div className="border rounded-lg p-3 bg-amber-50 space-y-3">
                 <p className="text-sm font-semibold">Grävmaskin – estimat (valfritt)</p>
@@ -1669,10 +1609,10 @@ if (hoursNum !== null) {
       </section>
 
       <footer className="text-xs text-gray-500">
-        API: <code>/api/machines</code>, <code>/api/machines/create</code>,{" "}
-        <code>/api/machines/events</code>, <code>/api/machines/events/create</code>,{" "}
-        <code>/api/machines/events/verify</code>, <code>/api/lead</code>,{" "}
-        <code>/api/valuation</code>, <code>/api/condition</code>, <code>/api/ai-scan</code>
+        API: <code>/api/machines</code>, <code>/api/machines/create</code>, <code>/api/machines/events</code>,{" "}
+        <code>/api/machines/events/create</code>, <code>/api/machines/events/verify</code>, <code>/api/lead</code>,{" "}
+        <code>/api/valuation</code>, <code>/api/condition</code>, <code>/api/ai-scan</code>,{" "}
+        <code>/api/uploads/machine-image</code>
       </footer>
     </main>
   );
